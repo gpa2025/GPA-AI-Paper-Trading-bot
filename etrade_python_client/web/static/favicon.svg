@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#0f1117"/>
+  <path d="M8 44 L18 28 L26 36 L38 18 L48 30 L56 20" stroke="#22c55e" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="56" cy="20" r="3" fill="#22c55e"/>
+  <text x="32" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="bold" fill="#8b8fa3">GPA</text>
+</svg>

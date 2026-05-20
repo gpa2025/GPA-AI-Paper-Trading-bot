@@ -1,0 +1,21 @@
+# Secrets
+etrade_python_client/config.ini
+
+# Runtime state
+etrade_python_client/paper_portfolio.json
+etrade_python_client/bot_state.json
+etrade_python_client/trading_bot.db
+etrade_python_client/trading_bot.db-wal
+etrade_python_client/trading_bot.db-shm
+
+# Logs
+etrade_python_client/python_client.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Generated
+etrade_python_client/performance_chart.png
+Thumbs.db

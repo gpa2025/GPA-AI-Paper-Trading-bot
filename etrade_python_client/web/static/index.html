@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <title>GPA AI Paper Trading Bot — Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e1e4eb;
+      --muted: #8b8fa3;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --yellow: #eab308;
+      --purple: #a855f7;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 { font-size: 20px; font-weight: 600; }
+    .header .subtitle { color: var(--muted); font-size: 13px; }
+    .controls { display: flex; gap: 8px; align-items: center; }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--red); display: inline-block;
+    }
+    .status-dot.running { background: var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    button {
+      padding: 8px 16px; border: none; border-radius: 6px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.85; }
+    .btn-start { background: var(--green); color: #000; }
+    .btn-stop { background: var(--red); color: #fff; }
+    .btn-reset { background: var(--border); color: var(--text); }
+    .btn-screen { background: var(--purple); color: #fff; }
+    .btn-etrade { background: var(--blue); color: #fff; }
+    .btn-etrade.connected { background: var(--green); color: #000; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    .panel {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .panel h2 {
+      font-size: 14px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .metric-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .metric-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; }
+    .metric-card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px;
+         border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    tr:hover { background: rgba(255,255,255,0.02); }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .signal-buy { background: rgba(34,197,94,0.15); color: var(--green);
+                  padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .signal-sell { background: rgba(239,68,68,0.15); color: var(--red);
+                   padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .signal-hold { background: rgba(139,143,163,0.15); color: var(--muted);
+                   padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .activity-item {
+      padding: 6px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px; display: flex; gap: 8px;
+    }
+    .activity-item .time { color: var(--muted); font-size: 11px; min-width: 70px; }
+    .activity-item .tag {
+      font-size: 10px; font-weight: 600; padding: 1px 6px;
+      border-radius: 3px; min-width: 60px; text-align: center;
+    }
+    .tag-BUY { background: rgba(34,197,94,0.2); color: var(--green); }
+    .tag-SELL, .tag-STOP-LOSS { background: rgba(239,68,68,0.2); color: var(--red); }
+    .tag-REBALANCE { background: rgba(234,179,8,0.2); color: var(--yellow); }
+    .tag-TAKE-PROFIT { background: rgba(168,85,247,0.2); color: var(--purple); }
+    .tag-SCREEN, .tag-DATA { background: rgba(59,130,246,0.2); color: var(--blue); }
+    .tag-BOT { background: rgba(139,143,163,0.2); color: var(--muted); }
+    .tag-ERROR { background: rgba(239,68,68,0.3); color: var(--red); }
+    .scroll-box { max-height: 350px; overflow-y: auto; }
+    .empty { color: var(--muted); font-style: italic; padding: 20px; text-align: center; }
+    .status-badge {
+      padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; user-select: none; display: inline-block;
+    }
+    .status-badge:hover { filter: brightness(1.3); transform: scale(1.05); }
+    .status-badge.protected {
+      background: rgba(234,179,8,0.15); color: var(--yellow); border: 1px solid rgba(234,179,8,0.3);
+    }
+    .status-badge.tradeable {
+      background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3);
+    }
+    /* Hide number input spinners */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 24px; width: 600px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+    }
+    .modal h2 { font-size: 18px; margin-bottom: 16px; }
+    .modal label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; margin-top: 12px; }
+    .modal input, .modal textarea {
+      width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: 13px; font-family: monospace;
+    }
+    .modal textarea { min-height: 120px; resize: vertical; }
+    .modal .btn-row { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .modal .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .modal .error { color: var(--red); font-size: 13px; margin-top: 8px; }
+    .modal .success { color: var(--green); font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>📈 GPA AI Paper Trading Bot</h1>
+      <div class="subtitle" id="subtitle">v2.0 · Real prices · Simulated trades · Paper only</div>
+    </div>
+    <div class="controls">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText" style="color:var(--muted);font-size:13px;">Stopped</span>
+      <button class="btn-start" onclick="startBot()">▶ Start</button>
+      <button class="btn-stop" onclick="stopBot()">⏹ Stop</button>
+      <button class="btn-reset" onclick="resetBot()">↺ Reset</button>
+      <button class="btn-screen" onclick="openImportModal()" title="Import positions into paper portfolio">📥 Import</button>
+      <button class="btn-etrade" onclick="connectEtrade()" id="etradeBtn" title="Connect E*TRADE for real-time data">🔗 E*TRADE</button>
+    </div>
+  </div>
+  <div class="container">
+    <!-- Summary cards -->
+    <div id="summaryCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px;"></div>
+    <!-- Portfolio trend chart -->
+    <div class="panel" style="margin-bottom:16px;" id="chartPanel">
+      <h2>📈 Portfolio Value Trend</h2>
+      <div id="chartContainer" style="position:relative;height:200px;overflow:hidden;">
+        <div class="empty" id="chartEmpty">No data yet — start the bot to begin tracking</div>
+        <canvas id="portfolioChart" style="width:100%;height:100%;display:none;"></canvas>
+      </div>
+      <div id="chartStats" style="display:flex;gap:24px;margin-top:8px;font-size:12px;color:var(--muted);"></div>
+    </div>
+    <!-- Main grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div id="positionsCard" class="panel"></div>
+      <div id="screenerCard" class="panel"></div>
+      <div id="tradesCard" class="panel" style="grid-column:1/-1;"></div>
+      <div id="activityCard" class="panel" style="grid-column:1/-1;"></div>
+    </div>
+  </div>
+
+  <!-- Import Positions Modal -->
+  <div class="modal-overlay" id="importModal">
+    <div class="modal">
+      <h2>📥 Import Positions</h2>
+
+      <!-- Tab switcher -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);">
+        <button id="tabManual" onclick="switchImportTab('manual')" style="flex:1;padding:10px;background:none;border:none;border-bottom:2px solid var(--blue);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">Manual Entry</button>
+        <button id="tabCsv" onclick="switchImportTab('csv')" style="flex:1;padding:10px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;">CSV File (E*TRADE)</button>
+      </div>
+
+      <!-- Manual entry tab -->
+      <div id="importTabManual">
+        <label>Positions (one per line: SYMBOL QTY AVG_COST)</label>
+        <textarea id="positionsInput" placeholder="AAPL 50 170.00
+MSFT 20 380.00
+GOOGL 10 140.00"></textarea>
+        <div class="hint">Format: SYMBOL QUANTITY AVERAGE_COST — separated by spaces, one per line</div>
+      </div>
+
+      <!-- CSV upload tab -->
+      <div id="importTabCsv" style="display:none;">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+          Upload a CSV exported from E*TRADE (Portfolio &gt; Download). The file is parsed locally — nothing is sent to any server.
+        </p>
+        <div style="border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+             id="csvDropZone"
+             onclick="document.getElementById('csvFileInput').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+             ondragleave="this.style.borderColor='var(--border)'"
+             ondrop="event.preventDefault();this.style.borderColor='var(--border)';handleCsvFile(event.dataTransfer.files[0])">
+          <div style="font-size:24px;margin-bottom:8px;">📄</div>
+          <div style="color:var(--muted);font-size:13px;">Drag & drop CSV here, or click to browse</div>
+          <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCsvFile(this.files[0])">
+        </div>
+        <div id="csvPreview" style="margin-top:12px;"></div>
+      </div>
+
+      <label>Cash Balance ($)</label>
+      <input type="number" id="cashInput" value="0" step="0.01" min="0" placeholder="0.00">
+      <div class="hint">Available cash in your account (set to 0 to fund buys by selling)</div>
+
+      <div id="importMsg"></div>
+
+      <div class="btn-row">
+        <button class="btn-reset" onclick="closeImportModal()">Cancel</button>
+        <button class="btn-start" onclick="submitImport()">Import Positions</button>
+      </div>
+    </div>
+  </div>
+  <!-- E*TRADE Auth Modal -->
+  <div class="modal-overlay" id="etradeModal">
+    <div class="modal">
+      <h2>🔗 Connect E*TRADE</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+        Connect your E*TRADE account for real-time price data from your broker.
+      </p>
+      <div id="etradeStep1">
+        <p style="font-size:13px;">Click below to open E*TRADE authorization in a new tab. Log in and copy the verification code.</p>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:12px;">
+          <button class="btn-etrade" onclick="startEtradeAuth()">Open E*TRADE Authorization</button>
+        </div>
+      </div>
+      <div id="etradeStep2" style="display:none;">
+        <label>Verification Code</label>
+        <input type="text" id="etradeCode" placeholder="Paste the code from E*TRADE here">
+        <div id="etradeMsg"></div>
+        <div class="btn-row">
+          <button class="btn-reset" onclick="closeEtradeModal()">Cancel</button>
+          <button class="btn-start" onclick="completeEtradeAuth()">Connect</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    // ---- API calls ----
+    async function api(path, method='GET') {
+      try {
+        const r = await fetch('/api/' + path, { method });
+        return await r.json();
+      } catch(e) { console.error(e); return null; }
+    }
+    function startBot() { api('start', 'POST'); }
+    function stopBot() { api('stop', 'POST'); }
+    function resetBot() {
+      if (confirm('Reset portfolio? This deletes all trade history.'))
+        api('reset', 'POST');
+    }
+    async function loadSyncedPositions() {
+      const r = await api('sync/status');
+      if (r && r.synced) {
+        const count = Object.keys(r.data.seed_positions || {}).length;
+        const cash = r.data.cash || 0;
+        if (confirm(`Found ${count} positions with $${cash.toFixed(2)} cash from E*TRADE sync.\n\nLoad into paper portfolio? (This replaces current positions)`)) {
+          const result = await api('sync/load', 'POST');
+          if (result && result.status === 'loaded') {
+            alert(`Loaded ${result.positions} positions with $${result.cash.toFixed(2)} cash.\n\nSymbols: ${result.symbols.join(', ')}`);
+            refresh();
+          } else {
+            alert('Failed to load: ' + (result?.error || 'Unknown error'));
+          }
+        }
+      } else {
+        openImportModal();
+      }
+    }
+
+    async function toggleStatus(symbol, exclude) {
+      const r = await fetch('/api/exclude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, excluded: exclude }),
+      });
+      const data = await r.json();
+      if (data.excluded_symbols) {
+        window._excludedSymbols = data.excluded_symbols;
+      }
+      refresh();
+    }
+
+    // ---- E*TRADE connection ----
+    async function connectEtrade() {
+      const r = await api('etrade/status');
+      if (r && r.authenticated) {
+        if (confirm('E*TRADE is already connected. Reconnect?')) {
+          openEtradeModal();
+        }
+      } else {
+        openEtradeModal();
+      }
+    }
+    function openEtradeModal() {
+      $('etradeModal').classList.add('active');
+      $('etradeStep1').style.display = 'block';
+      $('etradeStep2').style.display = 'none';
+      $('etradeMsg').innerHTML = '';
+    }
+    function closeEtradeModal() {
+      $('etradeModal').classList.remove('active');
+    }
+    async function startEtradeAuth() {
+      const r = await fetch('/api/etrade/auth/start', { method: 'POST' });
+      const data = await r.json();
+      if (data.auth_url) {
+        window.open(data.auth_url, '_blank');
+        $('etradeStep1').style.display = 'none';
+        $('etradeStep2').style.display = 'block';
+      } else {
+        alert('Failed to start auth: ' + (data.error || 'Unknown error'));
+      }
+    }
+    async function completeEtradeAuth() {
+      const code = $('etradeCode').value.trim();
+      if (!code) {
+        $('etradeMsg').innerHTML = '<div class="error">Please enter the verification code.</div>';
+        return;
+      }
+      $('etradeMsg').innerHTML = '<div style="color:var(--muted)">Connecting...</div>';
+      const r = await fetch('/api/etrade/auth/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await r.json();
+      if (data.status === 'authenticated') {
+        $('etradeMsg').innerHTML = '<div class="success">Connected to E*TRADE! Real-time data active.</div>';
+        setTimeout(() => { closeEtradeModal(); refresh(); }, 1500);
+      } else {
+        $('etradeMsg').innerHTML = `<div class="error">${data.error || 'Auth failed'}</div>`;
+      }
+    }
+
+    function openImportModal() {
+      $('importModal').classList.add('active');
+      $('importMsg').innerHTML = '';
+      switchImportTab('manual');
+    }
+    function closeImportModal() {
+      $('importModal').classList.remove('active');
+    }
+
+    // ---- Import tab switching ----
+    window._csvPositions = null;
+
+    function switchImportTab(tab) {
+      $('importTabManual').style.display = tab === 'manual' ? 'block' : 'none';
+      $('importTabCsv').style.display = tab === 'csv' ? 'block' : 'none';
+      $('tabManual').style.borderBottomColor = tab === 'manual' ? 'var(--blue)' : 'transparent';
+      $('tabManual').style.color = tab === 'manual' ? 'var(--text)' : 'var(--muted)';
+      $('tabCsv').style.borderBottomColor = tab === 'csv' ? 'var(--blue)' : 'transparent';
+      $('tabCsv').style.color = tab === 'csv' ? 'var(--text)' : 'var(--muted)';
+      window._activeImportTab = tab;
+    }
+
+    // ---- CSV parsing (E*TRADE format) ----
+    function handleCsvFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        parseCsv(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCsv(text) {
+      const positions = {};
+      let cash = 0;
+      const lines = text.split('\n');
+
+      // Find the data rows — look for the header line with Symbol,Last Price
+      let dataStart = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('Symbol,Last Price')) {
+          dataStart = i + 1;
+          break;
+        }
+      }
+
+      if (dataStart < 0) {
+        $('csvPreview').innerHTML = '<div class="error">Could not find position data in CSV. Make sure it\'s an E*TRADE portfolio export.</div>';
+        return;
+      }
+
+      for (let i = dataStart; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Parse CSV respecting quoted fields
+        const cols = line.split(',');
+        const symbol = cols[0]?.replace(/"/g, '').trim();
+
+        if (!symbol || symbol === 'TOTAL' || symbol === 'CASH') {
+          if (symbol === 'CASH' && cols[9]) {
+            cash = parseFloat(cols[9]) || 0;
+          }
+          continue;
+        }
+
+        // Skip non-equity (CUSIP numbers, etc.)
+        if (/^\d+$/.test(symbol)) continue;
+
+        const qty = parseFloat(cols[4]) || 0;
+        const avgCost = parseFloat(cols[5]) || 0;
+
+        if (qty > 0 && avgCost > 0) {
+          positions[symbol] = { qty: Math.round(qty), avg_cost: Math.round(avgCost * 100) / 100 };
+        }
+      }
+
+      window._csvPositions = positions;
+      const count = Object.keys(positions).length;
+
+      if (count === 0) {
+        $('csvPreview').innerHTML = '<div class="error">No valid positions found in CSV.</div>';
+        return;
+      }
+
+      // Update cash field
+      if (cash > 0) $('cashInput').value = cash.toFixed(2);
+
+      // Show preview
+      let html = `<div style="font-size:13px;color:var(--green);margin-bottom:8px;">✓ Found ${count} positions</div>`;
+      html += '<div class="scroll-box" style="max-height:150px;"><table><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th></tr>';
+      for (const [sym, pos] of Object.entries(positions)) {
+        html += `<tr><td><strong>${sym}</strong></td><td>${pos.qty}</td><td>${fmtDollar(pos.avg_cost)}</td></tr>`;
+      }
+      html += '</table></div>';
+      if (cash > 0) html += `<div style="font-size:12px;color:var(--muted);margin-top:4px;">Cash detected: $${cash.toFixed(2)}</div>`;
+      $('csvPreview').innerHTML = html;
+    }
+
+    async function submitImport() {
+      const cash = parseFloat($('cashInput').value) || 0;
+      const msgEl = $('importMsg');
+      let positions = {};
+      if (window._activeImportTab === 'csv') {
+        if (!window._csvPositions || Object.keys(window._csvPositions).length === 0) {
+          msgEl.innerHTML = '<div class="error">No CSV data. Upload a file first.</div>';
+          return;
+        }
+        positions = window._csvPositions;
+      } else {
+        const raw = $('positionsInput').value.trim();
+        if (!raw) { msgEl.innerHTML = '<div class="error">Enter at least one position.</div>'; return; }
+        for (const line of raw.split('\n').filter(l => l.trim())) {
+          const p = line.trim().split(/[\s,\t]+/);
+          if (p.length < 3) { msgEl.innerHTML = '<div class="error">Bad line: ' + line.trim() + '</div>'; return; }
+          const sym = p[0].toUpperCase(), qty = parseInt(p[1]), cost = parseFloat(p[2]);
+          if (!sym || isNaN(qty) || qty <= 0 || isNaN(cost) || cost <= 0) { msgEl.innerHTML = '<div class="error">Bad values: ' + line.trim() + '</div>'; return; }
+          positions[sym] = { qty, avg_cost: cost };
+        }
+      }
+      msgEl.innerHTML = '<div style="color:var(--muted)">Importing...</div>';
+      try {
+        const r = await fetch('/api/sync/import', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({positions, cash}) });
+        const data = await r.json();
+        if (data.status === 'imported') { msgEl.innerHTML = '<div class="success">Imported ' + data.positions + ' positions.</div>'; window._csvPositions = null; setTimeout(() => { closeImportModal(); refresh(); }, 1500); }
+        else { msgEl.innerHTML = '<div class="error">' + (data.error || 'Failed') + '</div>'; }
+      } catch(e) { msgEl.innerHTML = '<div class="error">' + e.message + '</div>'; }
+    }
+
+    // ---- Formatting helpers ----
+    function fmtDollar(v) {
+      if (v == null) return '—';
+      return '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    function fmtPct(v) {
+      if (v == null) return '—';
+      return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+    }
+    function fmtPnl(v) {
+      if (v == null) return '—';
+      const cls = v >= 0 ? 'pos' : 'neg';
+      return `<span class="${cls}">${fmtDollar(v)}</span>`;
+    }
+    function fmtSignal(s) {
+      if (!s || s === '—') return '<span class="signal-hold">—</span>';
+      const cls = s === 'BUY' ? 'signal-buy' : s === 'SELL' ? 'signal-sell' : 'signal-hold';
+      return `<span class="${cls}">${s}</span>`;
+    }
+    function fmtTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }
+
+    // ---- Render functions ----
+    function renderSummary(s) {
+      // Calculate re-screen countdown
+      let screenTimer = '—';
+      if (s.running && s.screener_rerun_cycles && s.cycle > 0) {
+        const cyclesLeft = s.screener_rerun_cycles - ((s.cycle - 1) % s.screener_rerun_cycles);
+        const secsLeft = cyclesLeft * (s.poll_interval || 60);
+        const mins = Math.floor(secsLeft / 60);
+        const secs = secsLeft % 60;
+        screenTimer = `${cyclesLeft} cycles (~${mins}m ${secs}s)`;
+      } else if (!s.running) {
+        screenTimer = 'Bot stopped';
+      }
+
+      $('summaryCards').innerHTML = `
+        <div class="metric-card">
+          <div class="label">Portfolio Value</div>
+          <div class="value">${fmtDollar(s.total_value)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Cash</div>
+          <div class="value">${fmtDollar(s.cash)}</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Positions</div>
+          <div class="value">${s.positions.length}</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Cycle</div>
+          <div class="value">${s.cycle}</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Trades</div>
+          <div class="value">${s.trade_log.length}</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Next Re-Screen</div>
+          <div class="value" style="font-size:16px;">${screenTimer}</div>
+        </div>
+      `;
+    }
+
+    // ---- Per-symbol limits ----
+    window._symbolLimits = {};
+    window._defaultTradeQty = 10;
+
+    async function loadLimits() {
+      const r = await api('limits');
+      if (r) {
+        window._symbolLimits = r.symbol_limits || {};
+        window._defaultTradeQty = r.default_trade_qty || 10;
+      }
+    }
+    loadLimits();
+
+    async function saveLimit(symbol) {
+      const buyEl = document.querySelector(`[data-limit-buy="${symbol}"]`);
+      const sellEl = document.querySelector(`[data-limit-sell="${symbol}"]`);
+      const maxBuy = parseInt(buyEl.value) || 0;
+      const maxSell = parseInt(sellEl.value) || 0;
+      const r = await fetch('/api/limits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, max_buy: maxBuy, max_sell: maxSell }),
+      });
+      const data = await r.json();
+      if (data.all_limits) window._symbolLimits = data.all_limits;
+    }
+
+    function renderPositions(positions) {
+      // Skip re-render if user is editing a limit input
+      const focused = document.activeElement;
+      if (focused && focused.dataset && (focused.dataset.limitBuy || focused.dataset.limitSell)) {
+        return;
+      }
+      const excluded = new Set(window._excludedSymbols || []);
+      const limits = window._symbolLimits || {};
+      const defQty = window._defaultTradeQty || 10;
+      let html = '<h2>📊 Positions</h2>';
+      if (!positions.length) {
+        html += '<div class="empty">No positions — click 📥 Import to add holdings</div>';
+      } else {
+        html += '<div class="scroll-box"><table><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>Value</th><th>P&L</th><th>Signal</th><th>Buy Limit</th><th>Sell Limit</th><th>Status</th></tr>';
+        for (const p of positions) {
+          const pnlCls = (p.pnl||0) >= 0 ? 'pos' : 'neg';
+          const isExcluded = excluded.has(p.symbol);
+          const lim = limits[p.symbol] || {};
+          const maxBuy = lim.max_buy != null ? lim.max_buy : defQty;
+          const maxSell = lim.max_sell != null ? lim.max_sell : defQty;
+          const statusBadge = isExcluded
+            ? `<span class="status-badge protected" onclick="toggleStatus('${p.symbol}', false)" title="Click to make tradeable">🔒 PROTECTED</span>`
+            : `<span class="status-badge tradeable" onclick="toggleStatus('${p.symbol}', true)" title="Click to protect">📈 TRADEABLE</span>`;
+          html += `<tr>
+            <td><strong>${p.symbol}</strong></td>
+            <td>${p.qty}</td>
+            <td>${fmtDollar(p.avg_cost)}</td>
+            <td>${p.mkt_price ? fmtDollar(p.mkt_price) : '<span style="color:var(--muted)">...</span>'}</td>
+            <td>${p.mkt_value ? fmtDollar(p.mkt_value) : '—'}</td>
+            <td><span class="${pnlCls}">${p.pnl != null ? fmtDollar(p.pnl) + ' (' + fmtPct(p.pnl_pct) + ')' : '—'}</span></td>
+            <td>${fmtSignal(p.signal)}</td>
+            <td><input type="number" data-limit-buy="${p.symbol}" value="${maxBuy}" min="0" max="9999"
+                 style="width:55px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;"
+                 onclick="this.select()" onblur="saveLimit('${p.symbol}')"></td>
+            <td><input type="number" data-limit-sell="${p.symbol}" value="${maxSell}" min="0" max="9999"
+                 style="width:55px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;"
+                 onclick="this.select()" onblur="saveLimit('${p.symbol}')"></td>
+            <td>${statusBadge}</td>
+          </tr>`;
+        }
+        html += '</table></div>';
+      }
+      $('positionsCard').innerHTML = html;
+    }
+
+    function renderActivity(log) {
+      let html = '<h2>📋 Activity Log</h2>';
+      if (!log.length) {
+        html += '<div class="empty">No activity yet — start the bot</div>';
+      } else {
+        html += '<div class="scroll-box">';
+        for (const item of [...log].reverse()) {
+          const tagCls = 'tag-' + (item.action || 'BOT');
+          html += `<div class="activity-item">
+            <span class="time">${fmtTime(item.timestamp)}</span>
+            <span class="tag ${tagCls}">${item.action}</span>
+            <span>${item.message}</span>
+          </div>`;
+        }
+        html += '</div>';
+      }
+      $('activityCard').innerHTML = html;
+    }
+
+    function renderScreener(results) {
+      let html = '<h2>🔍 Screener Results</h2>';
+      if (!results || !results.length) {
+        html += '<div class="empty">No screening data — start the bot or click Run Screener</div>';
+      } else {
+        html += '<table><tr><th>#</th><th>Symbol</th><th>Sector</th><th>Price</th><th>SMA</th><th>RSI</th><th>Score</th><th>Trend</th></tr>';
+        results.forEach((r, i) => {
+          const trend = r.above_sma ? '<span class="pos">▲ UP</span>' : '<span class="neg">▼ DOWN</span>';
+          const scoreCls = r.trend_score >= 0 ? 'pos' : 'neg';
+          html += `<tr>
+            <td>${i+1}</td>
+            <td><strong>${r.symbol}</strong></td>
+            <td>${r.sector}</td>
+            <td>${fmtDollar(r.price)}</td>
+            <td>${fmtDollar(r.sma)}</td>
+            <td>${r.rsi.toFixed(1)}</td>
+            <td><span class="${scoreCls}">${r.trend_score >= 0 ? '+' : ''}${r.trend_score.toFixed(1)}</span></td>
+            <td>${trend}</td>
+          </tr>`;
+        });
+        html += '</table>';
+      }
+      $('screenerCard').innerHTML = html;
+    }
+
+    function renderTrades(trades) {
+      let html = '<h2>💰 Trade History (last 50)</h2>';
+      if (!trades.length) {
+        html += '<div class="empty">No trades executed yet</div>';
+      } else {
+        html += '<div class="scroll-box"><table><tr><th>Time</th><th>Action</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Cash After</th></tr>';
+        for (const t of [...trades].reverse()) {
+          const cls = t.action === 'BUY' ? 'signal-buy' : 'signal-sell';
+          html += `<tr>
+            <td>${fmtTime(t.timestamp)}</td>
+            <td><span class="${cls}">${t.action}</span></td>
+            <td><strong>${t.symbol}</strong></td>
+            <td>${t.qty}</td>
+            <td>${fmtDollar(t.price)}</td>
+            <td>${fmtDollar(t.cash_after)}</td>
+          </tr>`;
+        }
+        html += '</table></div>';
+      }
+      $('tradesCard').innerHTML = html;
+    }
+
+    // ---- Portfolio trend chart ----
+    let lastChartFetch = 0;
+
+    async function renderChart() {
+      // Only fetch chart data every 30 seconds
+      const now = Date.now();
+      if (now - lastChartFetch < 30000) return;
+      lastChartFetch = now;
+
+      const snapshots = await api('history/snapshots?limit=200');
+      if (!snapshots || snapshots.length < 2) {
+        $('chartEmpty').style.display = 'block';
+        $('portfolioChart').style.display = 'none';
+        $('chartStats').innerHTML = '';
+        return;
+      }
+
+      // Snapshots come newest-first, reverse for chronological
+      const data = snapshots.reverse();
+      const values = data.map(s => s.total_value);
+      const times = data.map(s => s.timestamp);
+
+      const canvas = $('portfolioChart');
+      canvas.style.display = 'block';
+      $('chartEmpty').style.display = 'none';
+
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      const W = rect.width;
+      const H = rect.height;
+
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      const range = maxVal - minVal || 1;
+      const pad = 10;
+
+      // Clear
+      ctx.clearRect(0, 0, W, H);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(42,45,58,0.8)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad + (H - 2 * pad) * (1 - i / 4);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+
+        // Labels
+        const val = minVal + range * (i / 4);
+        ctx.fillStyle = '#8b8fa3';
+        ctx.font = '10px -apple-system, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('$' + val.toLocaleString('en-US', {maximumFractionDigits: 0}), 4, y - 3);
+      }
+
+      // Gradient fill
+      const gradient = ctx.createLinearGradient(0, 0, 0, H);
+      const trending = values[values.length - 1] >= values[0];
+      const lineColor = trending ? '#22c55e' : '#ef4444';
+      gradient.addColorStop(0, trending ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)');
+      gradient.addColorStop(1, 'rgba(15,17,23,0)');
+
+      // Draw filled area
+      ctx.beginPath();
+      for (let i = 0; i < values.length; i++) {
+        const x = (i / (values.length - 1)) * W;
+        const y = pad + (H - 2 * pad) * (1 - (values[i] - minVal) / range);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H);
+      ctx.lineTo(0, H);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Draw line
+      ctx.beginPath();
+      for (let i = 0; i < values.length; i++) {
+        const x = (i / (values.length - 1)) * W;
+        const y = pad + (H - 2 * pad) * (1 - (values[i] - minVal) / range);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Current value dot
+      const lastX = W;
+      const lastY = pad + (H - 2 * pad) * (1 - (values[values.length - 1] - minVal) / range);
+      ctx.beginPath();
+      ctx.arc(lastX - 2, lastY, 4, 0, Math.PI * 2);
+      ctx.fillStyle = lineColor;
+      ctx.fill();
+
+      // Stats below chart
+      const first = values[0];
+      const last = values[values.length - 1];
+      const change = last - first;
+      const changePct = first > 0 ? (change / first * 100) : 0;
+      const high = maxVal;
+      const low = minVal;
+      const cls = change >= 0 ? 'pos' : 'neg';
+
+      $('chartStats').innerHTML = `
+        <span>Start: <strong>$${first.toLocaleString('en-US', {minimumFractionDigits:2})}</strong></span>
+        <span>Current: <strong>$${last.toLocaleString('en-US', {minimumFractionDigits:2})}</strong></span>
+        <span>Change: <strong class="${cls}">${change >= 0 ? '+' : ''}$${change.toLocaleString('en-US', {minimumFractionDigits:2})} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)</strong></span>
+        <span>High: <strong>$${high.toLocaleString('en-US', {minimumFractionDigits:2})}</strong></span>
+        <span>Low: <strong>$${low.toLocaleString('en-US', {minimumFractionDigits:2})}</strong></span>
+        <span style="margin-left:auto;">${data.length} snapshots</span>
+      `;
+    }
+
+    // ---- Polling loop ----
+    let firstLoad = true;
+    window._excludedSymbols = [];
+
+    async function refresh() {
+      const s = await api('state');
+      if (!s) return;
+
+      // Store excluded symbols for the positions table
+      window._excludedSymbols = (s.config && s.config.excluded_symbols) || [];
+
+      // Update E*TRADE button state
+      const eBtn = $('etradeBtn');
+      if (s.data_source === 'etrade') {
+        eBtn.classList.add('connected');
+        eBtn.textContent = '✓ E*TRADE Live';
+        $('subtitle').textContent = 'v2.0 · E*TRADE real-time data · Simulated trades · Paper only';
+      } else {
+        eBtn.classList.remove('connected');
+        eBtn.textContent = '🔗 E*TRADE';
+        $('subtitle').textContent = 'v2.0 · Yahoo Finance data · Simulated trades · Paper only';
+      }
+
+      // On first load, fetch live prices for held positions
+      if (firstLoad && s.positions.length > 0) {
+        firstLoad = false;
+        api('prices', 'POST').then(() => refresh());
+        return;
+      }
+
+      // Status indicator
+      const dot = $('statusDot');
+      const txt = $('statusText');
+      if (s.running) {
+        dot.classList.add('running');
+        txt.textContent = `Running · Cycle ${s.cycle}`;
+      } else {
+        dot.classList.remove('running');
+        txt.textContent = s.error ? 'Error: ' + s.error : 'Stopped';
+      }
+
+      renderSummary(s);
+      renderPositions(s.positions);
+      renderActivity(s.activity_log);
+      renderScreener(s.screen_results);
+      renderTrades(s.trade_log);
+      renderChart();
+    }
+
+    // Refresh every 3 seconds
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

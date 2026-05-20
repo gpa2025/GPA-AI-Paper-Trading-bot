@@ -1,0 +1,264 @@
+================================================================
+  GPA AI Paper Trading Bot v2.0 — Installation Instructions
+================================================================
+
+  This guide walks you through setting up the trading bot on a
+  new Windows computer. Total time: about 5 minutes.
+
+  v2.0 Changes:
+  - 15-minute polling interval (was 60 seconds)
+  - 24-hour cooldown per symbol after each trade
+  - Dollar-based position sizing ($1,000 per trade default)
+  - Max 15% of portfolio in any single position
+
+================================================================
+  STEP 1: Install Python
+================================================================
+
+  The bot requires Python 3.10 or higher.
+
+  1. Go to https://www.python.org/downloads/
+  2. Download the latest Python for Windows
+  3. Run the installer
+     IMPORTANT: Check the box "Add Python to PATH" at the bottom
+     of the first screen before clicking Install
+  4. Click "Install Now"
+  5. Verify by opening Command Prompt and typing:
+     python --version
+     You should see something like "Python 3.13.x"
+
+================================================================
+  STEP 2: Copy the Project
+================================================================
+
+  Copy the entire project folder to your computer.
+  Recommended location: C:\Users\YourName\Desktop\GPA_TradingBot
+
+  The folder should contain these files:
+
+    GPA_TradingBot/
+    ├── install.bat                  <-- installer
+    ├── launch_trading_bot.bat       <-- launcher
+    ├── uninstall.bat                <-- uninstaller
+    ├── create_shortcut.py
+    ├── trading_bot.ico
+    ├── requirements.txt
+    ├── README.md
+    ├── setup.py
+    └── etrade_python_client/        <-- all the code
+        ├── config.ini               <-- API keys go here
+        ├── trading_config.py        <-- bot settings
+        ├── run_dashboard.py
+        ├── trading_bot.py
+        ├── market/
+        ├── strategy/
+        ├── paper_trading/
+        ├── accounts/
+        ├── order/
+        ├── web/
+        └── db/
+
+================================================================
+  STEP 3: Run the Installer
+================================================================
+
+  1. Open the project folder
+  2. Double-click "install.bat"
+  3. The installer will:
+     - Create a Python virtual environment
+     - Install all required packages (pandas, yfinance, flask, etc.)
+     - Create a desktop shortcut "GPA Trading Bot"
+     - Set up auto-start so the bot runs when you log in
+
+  If you see a Windows security prompt, click "Run anyway".
+
+================================================================
+  STEP 4: Create Local Configuration Files
+================================================================
+
+  The following files are NOT stored in git (they contain secrets
+  or machine-specific data). You must create them manually:
+
+  1. etrade_python_client/config.ini
+     ─────────────────────────────────
+     Create this file with your E*TRADE API keys:
+
+     [DEFAULT]
+     CONSUMER_KEY = your_sandbox_key
+     CONSUMER_SECRET = your_sandbox_secret
+     SANDBOX_BASE_URL = https://apisb.etrade.com
+     PROD_BASE_URL = https://api.etrade.com
+     PROD_CONSUMER_KEY = your_production_key
+     PROD_CONSUMER_SECRET = your_production_secret
+
+     (Skip this if you only use paper trading with Yahoo Finance)
+
+  2. etrade_python_client/paper_portfolio.json
+     ──────────────────────────────────────────
+     Auto-created on first run. To pre-seed positions, edit
+     SEED_POSITIONS in trading_config.py before first launch.
+
+  3. etrade_python_client/bot_state.json
+     ────────────────────────────────────
+     Auto-created on first run. No manual setup needed.
+
+  4. etrade_python_client/trading_bot.db
+     ────────────────────────────────────
+     SQLite database, auto-created on first run.
+
+  Files 2-4 are generated automatically — just be aware they
+  won't exist until you run the bot for the first time.
+
+================================================================
+  STEP 5: Import Your Positions
+================================================================
+
+  Option A: CSV Import (Recommended)
+  -----------------------------------
+  1. Log into E*TRADE
+  2. Go to Portfolio, click Download/Export to CSV
+  3. Launch the bot (double-click desktop shortcut)
+  4. Click the "Import" button in the dashboard
+  5. Switch to the "CSV File" tab
+  6. Drag and drop your CSV file
+  7. Click "Import Positions"
+
+  Option B: Manual Entry
+  ----------------------
+  1. Launch the bot
+  2. Click "Import" in the dashboard
+  3. Type positions one per line:
+     AAPL 50 170.00
+     MSFT 20 380.00
+  4. Set your cash balance
+  5. Click "Import Positions"
+
+================================================================
+  STEP 6: Configure Trading Settings (Optional)
+================================================================
+
+  All settings are in etrade_python_client/trading_config.py.
+  The defaults work well, but you can customize:
+
+  Polling & Timing:
+    POLL_INTERVAL_SEC = 900     # 15 minutes between price checks
+    COOLDOWN_HOURS = 24         # wait 24h before re-trading same symbol
+
+  Position Sizing (dollar-based):
+    TRADE_DOLLAR_AMOUNT = 1000  # $1,000 per trade
+    MAX_PORTFOLIO_PCT = 0.15    # max 15% of portfolio in one stock
+    MAX_POSITION_SIZE = 100     # max shares in any single symbol
+
+  Per-symbol overrides (dollar amounts):
+    SYMBOL_LIMITS = {
+        "QS": {"max_buy": 500, "max_sell": 1000},
+    }
+
+  Strategy:
+    SHORT_SMA_WINDOW = 10       # fast moving average
+    LONG_SMA_WINDOW = 30        # slow moving average
+    RSI_OVERBOUGHT = 70.0       # sell threshold
+
+  Risk Management:
+    STOP_LOSS_PCT = 0.05        # sell if down 5%
+    TAKE_PROFIT_PCT = 0.10      # sell if up 10%
+
+================================================================
+  STEP 7: Start Trading
+================================================================
+
+  1. Double-click "GPA Trading Bot" on your desktop
+     (or it starts automatically after a reboot)
+  2. The dashboard opens in Chrome at http://127.0.0.1:5000
+  3. Click the green "Start" button
+  4. The bot will:
+     - Screen 100+ stocks across 9 sectors
+     - Pick the top trending stocks
+     - Generate BUY/SELL signals using SMA + RSI
+     - Execute paper trades (simulated, no real money)
+     - Show everything in the dashboard
+
+================================================================
+  DAILY USAGE
+================================================================
+
+  Starting:
+    Double-click "GPA Trading Bot" on desktop.
+    If already running, it just opens the browser.
+
+  Stopping:
+    Click the red "Stop" button in the dashboard.
+    Or close the terminal window.
+
+  After reboot:
+    The bot starts automatically when you log in.
+    Open http://127.0.0.1:5000 to see the dashboard.
+
+  Protecting positions:
+    Click the status badge next to any position to toggle
+    between PROTECTED (bot won't touch) and TRADEABLE.
+
+  Setting trade limits:
+    Edit the Buy/Sell dollar limit in the positions table.
+    Click away to save. The bot sizes trades in dollar amounts
+    (default $1,000 per trade).
+
+================================================================
+  TROUBLESHOOTING
+================================================================
+
+  "Python is not recognized"
+    → Reinstall Python and check "Add Python to PATH"
+
+  "pip install fails"
+    → Run: python -m pip install --upgrade pip
+    → Then run install.bat again
+
+  Dashboard won't open
+    → Open Command Prompt, navigate to the project folder
+    → Run: cd etrade_python_client
+    → Run: python run_dashboard.py
+    → Check the error message
+
+  Bot shows no positions
+    → Import your positions using the Import button
+    → Or check etrade_python_client/paper_portfolio.json
+
+  Bot not trading
+    → Make sure you clicked "Start" in the dashboard
+    → Check that positions are set to TRADEABLE (not PROTECTED)
+    → The bot only sells to fund buys — if no BUY signals,
+      nothing happens (this is by design)
+
+  Reset everything
+    → Click "Reset" in the dashboard, or delete these files:
+      etrade_python_client/paper_portfolio.json
+      etrade_python_client/bot_state.json
+      etrade_python_client/trading_bot.db
+
+  Uninstall
+    → Double-click uninstall.bat
+    → Then delete the project folder
+
+================================================================
+  FILES REFERENCE
+================================================================
+
+  config.ini          E*TRADE API keys
+  trading_config.py   Bot settings (strategy, limits, screener)
+  paper_portfolio.json  Current portfolio state (cash + positions)
+  bot_state.json      Bot runtime state (cycle, signals, etc.)
+  trading_bot.db      SQLite database (all historical data)
+  python_client.log   Application log file
+
+================================================================
+  SUPPORT
+================================================================
+
+  All trading is simulated. No real orders are placed.
+  This is for testing and educational purposes only.
+
+  Dashboard: http://127.0.0.1:5000
+  README:    See README.md for full technical documentation
+
+================================================================

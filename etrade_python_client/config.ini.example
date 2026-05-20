@@ -1,0 +1,7 @@
+[DEFAULT]
+CONSUMER_KEY = your_sandbox_consumer_key
+CONSUMER_SECRET = your_sandbox_consumer_secret
+SANDBOX_BASE_URL = https://apisb.etrade.com
+PROD_BASE_URL = https://api.etrade.com
+PROD_CONSUMER_KEY = your_production_consumer_key
+PROD_CONSUMER_SECRET = your_production_consumer_secret
