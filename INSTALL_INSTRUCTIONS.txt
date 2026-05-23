@@ -192,6 +192,38 @@
      - Show everything in the dashboard
 
 ================================================================
+  LAN ACCESS
+================================================================
+
+  The dashboard listens on all network interfaces (0.0.0.0:5000).
+  Connect from any device on your local network:
+
+    http://<your-PC-IP>:5000
+    Example: http://192.168.1.193:5000
+
+  A Windows Firewall rule ("Trading Bot Dashboard") is created
+  during install to allow inbound TCP on port 5000.
+
+================================================================
+  AUTO-START ON REBOOT
+================================================================
+
+  A Windows Scheduled Task (GPA_TradingBot_AutoStart) runs at
+  system startup. It:
+    1. Launches the web dashboard
+    2. Waits for it to be ready
+    3. Calls POST /api/start to begin active trading
+
+  The bot will be trading and accessible on the LAN immediately
+  after reboot — no manual intervention needed.
+
+  To manage the task:
+    - View:    Get-ScheduledTask -TaskName 'GPA_TradingBot_AutoStart'
+    - Disable: Disable-ScheduledTask -TaskName 'GPA_TradingBot_AutoStart'
+    - Enable:  Enable-ScheduledTask -TaskName 'GPA_TradingBot_AutoStart'
+    - Remove:  Unregister-ScheduledTask -TaskName 'GPA_TradingBot_AutoStart'
+
+================================================================
   DAILY USAGE
 ================================================================
 
@@ -204,8 +236,9 @@
     Or close the terminal window.
 
   After reboot:
-    The bot starts automatically when you log in.
-    Open http://127.0.0.1:5000 to see the dashboard.
+    The bot starts automatically and begins trading.
+    Open http://127.0.0.1:5000 (local) or
+    http://<your-PC-IP>:5000 (from other LAN devices).
 
   Protecting positions:
     Click the status badge next to any position to toggle
@@ -297,7 +330,8 @@
   All trading is simulated. No real orders are placed.
   This is for testing and educational purposes only.
 
-  Dashboard: http://127.0.0.1:5000
+  Dashboard: http://127.0.0.1:5000 (local)
+             http://<your-PC-IP>:5000 (LAN)
   README:    See README.md for full technical documentation
 
 ================================================================

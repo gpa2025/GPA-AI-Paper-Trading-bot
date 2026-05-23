@@ -77,6 +77,7 @@ etrade\_python\_client/
 ├── config.ini                  # E\*TRADE API keys (optional, for original client)
 ├── trading\_config.py           # All bot configuration in one place
 ├── trading\_bot.py              # Main entry point — the trading loop
+├── run\_dashboard.py            # Web dashboard launcher (binds 0.0.0.0:5000)
 ├── test\_run.py                 # Single-cycle test script
 ├── test\_screener.py            # Screener-only test script
 ├── market/
@@ -92,6 +93,9 @@ etrade\_python\_client/
 │   └── accounts.py             # Original E\*TRADE account management
 └── order/
     └── order.py                # Original E\*TRADE order placement
+
+start\_trading\_bot.ps1            # Startup script (launches dashboard + starts trading)
+register\_task.ps1                # Helper to register the Windows Scheduled Task
 ```
 
 \---
@@ -188,6 +192,14 @@ Launch the dashboard:
 cd etrade\_python\_client
 python run\_dashboard.py
 ```
+
+### LAN Access
+
+The dashboard binds to `0.0.0.0:5000`, making it accessible from any device on your local network at `http://<your-PC-IP>:5000`. A Windows Firewall rule ("Trading Bot Dashboard") allows inbound TCP on port 5000.
+
+### Auto-Start on Reboot
+
+A Windows Scheduled Task (`GPA_TradingBot_AutoStart`) launches the dashboard and automatically starts trading when the system boots — no manual "Start" click required.
 
 \---
 

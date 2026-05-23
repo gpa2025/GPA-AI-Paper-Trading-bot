@@ -30,6 +30,7 @@ if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5000
     print(f"\n{'='*50}")
     print(f"  AI Paper Trading Bot — Web Dashboard")
-    print(f"  Open http://127.0.0.1:{port} in your browser")
+    print(f"  Local:   http://127.0.0.1:{port}")
+    print(f"  Network: http://0.0.0.0:{port}")
     print(f"{'='*50}\n")
-    app.run(debug=False, host="127.0.0.1", port=port)
+    app.run(debug=False, host="0.0.0.0", port=port)
