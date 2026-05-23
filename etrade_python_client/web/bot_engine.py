@@ -94,6 +94,49 @@ class BotEngine:
             return False
         return now_et.hour * 60 + now_et.minute >= 570 and now_et.hour < 16
 
+    def get_market_countdown(self) -> dict:
+        """Return market status and countdown to next open or close."""
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("America/New_York")
+        now = datetime.now(tz)
+        is_open = self._is_market_open()
+
+        # US market holidays 2026 (NYSE closed)
+        holidays = {
+            (1, 1), (1, 19), (2, 16), (4, 3), (5, 25),
+            (6, 19), (7, 3), (9, 7), (11, 26), (12, 25),
+        }
+
+        def is_trading_day(dt):
+            if dt.weekday() >= 5:
+                return False
+            if (dt.month, dt.day) in holidays:
+                return False
+            return True
+
+        if is_open:
+            # Countdown to close (today 4:00 PM ET)
+            close_time = now.replace(hour=16, minute=0, second=0, microsecond=0)
+            diff = close_time - now
+            return {"open": True, "target": "close", "seconds": int(diff.total_seconds())}
+        else:
+            # Find next trading day
+            candidate = now
+            if now.hour >= 16 or not is_trading_day(now):
+                candidate = (now + timedelta(days=1)).replace(hour=9, minute=30, second=0, microsecond=0)
+            else:
+                candidate = now.replace(hour=9, minute=30, second=0, microsecond=0)
+
+            # Skip weekends and holidays
+            while not is_trading_day(candidate):
+                candidate += timedelta(days=1)
+
+            open_time = candidate.replace(hour=9, minute=30, second=0, microsecond=0)
+            diff = open_time - now
+            return {"open": False, "target": "open", "seconds": int(diff.total_seconds())}
+
     def get_state(self) -> dict:
         """Return a snapshot of the bot's current state for the web API."""
         with self._lock:
@@ -123,6 +166,7 @@ class BotEngine:
                 "running": self.running,
                 "cycle": self.cycle,
                 "market_open": self._is_market_open(),
+                "market_countdown": self.get_market_countdown(),
                 "cash": round(self.portfolio.cash, 2) if self.portfolio else 0,
                 "total_value": round(total_value, 2),
                 "positions": positions,

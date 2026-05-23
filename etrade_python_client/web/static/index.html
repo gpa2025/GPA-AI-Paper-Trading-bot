@@ -330,6 +330,13 @@ GOOGL 10 140.00"></textarea>
       }
     });
 
+    function isPanelCollapsed(id) {
+      var panel = document.getElementById(id);
+      if (!panel) return false;
+      var h2 = panel.querySelector('h2');
+      return h2 && h2.classList.contains('collapsed');
+    }
+
     // ---- API calls ----
     async function api(path, method='GET') {
       try {
@@ -730,6 +737,7 @@ GOOGL 10 140.00"></textarea>
     }
 
     function renderActivity(log) {
+      if (isPanelCollapsed('activityCard')) return;
       let html = '<h2>📋 Activity Log</h2>';
       if (!log.length) {
         html += '<div class="empty">No activity yet — start the bot</div>';
@@ -749,6 +757,7 @@ GOOGL 10 140.00"></textarea>
     }
 
     function renderScreener(results) {
+      if (isPanelCollapsed('screenerCard')) return;
       let html = '<h2>🔍 Screener Results</h2>';
       if (!results || !results.length) {
         html += '<div class="empty">No screening data — start the bot or click Run Screener</div>';
@@ -774,6 +783,7 @@ GOOGL 10 140.00"></textarea>
     }
 
     function renderTrades(trades) {
+      if (isPanelCollapsed('tradesCard')) return;
       let html = '<h2>💰 Trade History (last 50)</h2>';
       if (!trades.length) {
         html += '<div class="empty">No trades executed yet</div>';
@@ -979,6 +989,7 @@ GOOGL 10 140.00"></textarea>
     // ---- Catalyst Tracker ----
     let lastCatalystFetch = 0;
     async function renderCatalysts(positions) {
+      if (isPanelCollapsed('catalystCard')) return;
       const now = Date.now();
       if (now - lastCatalystFetch < 120000) return; // refresh every 2 min
       lastCatalystFetch = now;
@@ -1172,7 +1183,18 @@ GOOGL 10 140.00"></textarea>
         marketBanner.style.cssText = 'font-size:18px;font-weight:bold;color:var(--muted);text-align:center;padding:8px 0;';
         document.querySelector('.header').after(marketBanner);
       }
-      marketBanner.textContent = s.market_open ? '' : '🌙 MARKET CLOSED';
+      if (s.market_countdown) {
+        var secs = s.market_countdown.seconds;
+        var h = Math.floor(secs / 3600);
+        var m = Math.floor((secs % 3600) / 60);
+        var sec = secs % 60;
+        var countdown = (h > 0 ? h + 'h ' : '') + m + 'm ' + sec + 's';
+        if (s.market_open) {
+          marketBanner.innerHTML = '🟢 <span style="color:var(--green);">MARKET OPEN</span> <span style="font-size:13px;font-weight:normal;color:var(--muted);">closes in ' + countdown + '</span>';
+        } else {
+          marketBanner.innerHTML = '🌙 <span>MARKET CLOSED</span> <span style="font-size:13px;font-weight:normal;color:var(--muted);">opens in ' + countdown + '</span>';
+        }
+      }
 
       if (s.running) {
         dot.classList.add('running');

@@ -235,7 +235,12 @@
 
   Collapsible panels:
     Click any panel header to collapse or expand it.
-    Useful for focusing on specific sections of the dashboard.
+    Panels stay collapsed until you click to expand again.
+
+  Market status:
+    A bold banner shows "MARKET CLOSED" or "MARKET OPEN" with a
+    countdown timer to the next open or close. The countdown is
+    aware of weekends and US market holidays.
 
 ================================================================
   TROUBLESHOOTING

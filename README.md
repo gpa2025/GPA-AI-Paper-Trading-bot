@@ -180,7 +180,7 @@ The bot includes a web dashboard at `http://127.0.0.1:5000` with:
 * **Start/Stop Toggle** — single button that changes color based on bot state
 * **Collapsible panels** — click any panel header to collapse/expand
 * **Market Regime Filter** — blocks all buys when SPY is below its 50-day SMA (risk-off mode)
-* **Market Closed banner** — bold indicator when market is closed (evenings, weekends, holidays)
+* **Market Closed banner** — bold indicator when market is closed (evenings, weekends, holidays) with countdown to next open/close
 
 Launch the dashboard:
 
