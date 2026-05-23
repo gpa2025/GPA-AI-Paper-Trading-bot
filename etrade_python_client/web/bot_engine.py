@@ -85,6 +85,15 @@ class BotEngine:
     #  State accessors (thread-safe)
     # ------------------------------------------------------------------ #
 
+    def _is_market_open(self) -> bool:
+        """Check if US market is currently open."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        if now_et.weekday() >= 5:
+            return False
+        return now_et.hour * 60 + now_et.minute >= 570 and now_et.hour < 16
+
     def get_state(self) -> dict:
         """Return a snapshot of the bot's current state for the web API."""
         with self._lock:
@@ -113,6 +122,7 @@ class BotEngine:
             return {
                 "running": self.running,
                 "cycle": self.cycle,
+                "market_open": self._is_market_open(),
                 "cash": round(self.portfolio.cash, 2) if self.portfolio else 0,
                 "total_value": round(total_value, 2),
                 "positions": positions,

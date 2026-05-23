@@ -1165,6 +1165,15 @@ GOOGL 10 140.00"></textarea>
       const dot = $('statusDot');
       const txt = $('statusText');
       const toggleBtn = $('toggleBtn');
+      let marketBanner = document.getElementById('marketBanner');
+      if (!marketBanner) {
+        marketBanner = document.createElement('div');
+        marketBanner.id = 'marketBanner';
+        marketBanner.style.cssText = 'font-size:18px;font-weight:bold;color:var(--muted);text-align:center;padding:8px 0;';
+        document.querySelector('.header').after(marketBanner);
+      }
+      marketBanner.textContent = s.market_open ? '' : '🌙 MARKET CLOSED';
+
       if (s.running) {
         dot.classList.add('running');
         txt.textContent = `Running · Cycle ${s.cycle}`;
