@@ -1,0 +1,152 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Trading Bot Architecture" id="bot-arch">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="GPA AI Paper Trading Bot v2.1.2 — Architecture" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="500" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Data Sources -->
+        <mxCell id="yahoo" value="Yahoo Finance&#xa;(Daily OHLC + Live Prices)" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="etrade" value="E*TRADE API&#xa;(Optional Real-Time)" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="220" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Market Data Module -->
+        <mxCell id="market" value="Market Data Module&#xa;&#xa;• fetch_history() — daily bars&#xa;• get_price() — live quote&#xa;• Refreshes every 4 hours" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="340" y="130" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows from sources to market -->
+        <mxCell id="e1" edge="1" source="yahoo" target="market" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" source="etrade" target="market" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Market Hours Check -->
+        <mxCell id="hours" value="Market Open?&#xa;(Mon-Fri 9:30-16:00 ET&#xa;+ holiday check via SPY)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="360" y="280" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_mkt_hours" edge="1" source="market" target="hours" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sleep" value="💤 Sleep&#xa;(wait for market)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="300" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_no" value="NO" edge="1" source="hours" target="sleep" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Strategy Engine -->
+        <mxCell id="strategy" value="Strategy Engine&#xa;&#xa;• SMA Crossover (10/30)&#xa;• RSI (14-period)&#xa;• Candlestick Patterns&#xa;• Head &amp; Shoulders&#xa;• Daily data only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="260" width="180" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_yes" value="YES" edge="1" source="hours" target="strategy" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Market Regime Filter -->
+        <mxCell id="regime" value="Market Regime&#xa;SPY &gt; 50-day SMA?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="620" y="430" width="140" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_strat_regime" edge="1" source="strategy" target="regime" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Signals -->
+        <mxCell id="signals" value="Signal Output&#xa;&#xa;BUY / SELL / HOLD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="850" y="290" width="150" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_regime_sig" value="RISK-ON" edge="1" source="regime" target="signals" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="hold_only" value="HOLD/SELL only&#xa;(no buys)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="850" y="440" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_riskoff" value="RISK-OFF" edge="1" source="regime" target="hold_only" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Cooldown Check -->
+        <mxCell id="cooldown" value="24h Cooldown&#xa;per symbol" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="275" width="120" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_sig_cool" edge="1" source="signals" target="cooldown" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Order Execution -->
+        <mxCell id="execution" value="Order Execution&#xa;&#xa;• Dollar-based sizing ($1,000)&#xa;• Stop-loss (5%)&#xa;• Take-profit (10%)&#xa;• Rebalancing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="260" width="180" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_cool_exec" value="PASS" edge="1" source="cooldown" target="execution" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Paper Portfolio -->
+        <mxCell id="portfolio" value="Paper Portfolio&#xa;(paper_portfolio.json)&#xa;&#xa;Positions + Cash + P&amp;L" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;size=10;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="430" width="140" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_exec_port" edge="1" source="execution" target="portfolio" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Database -->
+        <mxCell id="db" value="SQLite Database&#xa;(trading_bot.db)&#xa;&#xa;Trades • Snapshots&#xa;Prices • Activity" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;size=10;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="430" width="140" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_exec_db" edge="1" source="execution" target="db" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Web Dashboard -->
+        <mxCell id="dashboard" value="Web Dashboard&#xa;(http://127.0.0.1:5000)&#xa;&#xa;• Portfolio chart&#xa;• Signal explanations&#xa;• Catalysts &amp; News&#xa;• Strategy tuning&#xa;• Exclusion blocklist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="590" width="180" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_db_dash" edge="1" source="db" target="dashboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_port_dash" edge="1" source="portfolio" target="dashboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Stock Screener -->
+        <mxCell id="screener" value="Stock Screener&#xa;&#xa;• 100+ stocks, 9 sectors&#xa;• Trend scoring&#xa;• Ethical filtering&#xa;• Refreshes every ~7.5h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="100" width="180" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_screen_strat" value="Top 8 picks" style="dashed=1;" edge="1" source="screener" target="strategy" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Loop arrow -->
+        <mxCell id="loop" value="Every 15 min" style="text;html=1;align=center;fontSize=9;fontStyle=2;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="440" y="250" width="80" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

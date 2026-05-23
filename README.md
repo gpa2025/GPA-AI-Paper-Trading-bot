@@ -6,6 +6,27 @@ An AI-powered paper trading system that uses real market data from Yahoo Finance
 
 ---
 
+## Architecture
+
+![Architecture Diagram](docs/trading_bot_architecture.drawio)
+
+> Open `docs/trading_bot_architecture.drawio` in [draw.io](https://app.diagrams.net) to view the full interactive diagram.
+
+```
+Yahoo Finance ──→ Market Data ──→ Market Open? ──→ Strategy Engine ──→ Market Regime
+                                       ↓ NO              (SMA + RSI +       ↓
+                                    💤 Sleep            Candles + H&S)   SPY > 50d SMA?
+                                                              ↓               ↓ RISK-OFF
+                                                     Signal (BUY/SELL)    HOLD only
+                                                              ↓
+                                                     24h Cooldown ──→ Order Execution
+                                                                        ($1,000 sizing)
+                                                                              ↓
+                                                              Portfolio + DB ──→ Dashboard
+```
+
+---
+
 ## Table of Contents
 
 - [Features](#features)
