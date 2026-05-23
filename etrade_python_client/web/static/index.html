@@ -151,7 +151,7 @@
   <div class="header">
     <div>
       <h1>📈 GPA AI Paper Trading Bot</h1>
-      <div class="subtitle" id="subtitle">v2.1.1 · Real prices · Simulated trades · Paper only</div>
+      <div class="subtitle" id="subtitle">v2.1.2 · Real prices · Simulated trades · Paper only</div>
     </div>
     <div class="controls">
       <span class="status-dot" id="statusDot"></span>
@@ -216,12 +216,25 @@
         </div>
       </div>
     </div>
+    <!-- Exclusion Blocklist -->
+    <div class="panel" style="margin-bottom:16px;" id="blocklistPanel">
+      <h2>🚫 Exclusion Blocklist</h2>
+      <div id="blocklistBody" style="margin-top:12px;font-size:12px;">
+        <p style="color:var(--muted);margin:0 0 10px;">Categories of stocks the bot will never trade. Click a category to see tickers.</p>
+        <div id="blocklistCategories"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+          <input type="text" id="blocklistAddInput" placeholder="Add ticker (e.g. XYZ)" style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;width:140px;">
+          <button onclick="addToBlocklist()" style="padding:5px 12px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">+ Block</button>
+          <span id="blocklistMsg" style="font-size:11px;color:var(--green);"></span>
+        </div>
+      </div>
+    </div>
     <!-- Main grid -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div style="display:grid;grid-template-columns:1fr;gap:16px;">
       <div id="positionsCard" class="panel"></div>
       <div id="screenerCard" class="panel"></div>
-      <div id="catalystCard" class="panel" style="grid-column:1/-1;"></div>
-      <div id="tradesCard" class="panel" style="grid-column:1/-1;"></div>
+      <div id="catalystCard" class="panel"></div>
+      <div id="tradesCard" class="panel"></div>
       <div id="activityCard" class="panel" style="grid-column:1/-1;"></div>
     </div>
   </div>
@@ -1027,6 +1040,63 @@ GOOGL 10 140.00"></textarea>
         (link ? '<a href="' + link + '" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;">📖 Read full article →</a>' : '');
     });
 
+    // ---- Exclusion Blocklist ----
+    var BLOCKLIST_LABELS = {
+      "LMT": "Lockheed Martin", "RTX": "RTX (Raytheon)", "NOC": "Northrop Grumman",
+      "GD": "General Dynamics", "LHX": "L3Harris", "HII": "Huntington Ingalls",
+      "TDG": "TransDigm", "TXT": "Textron", "HEI": "HEICO",
+      "SWBI": "Smith & Wesson", "RGR": "Sturm Ruger", "AXON": "Axon Enterprise",
+      "KTOS": "Kratos Defense", "POWW": "AMMO Inc", "VSTO": "Vista Outdoor",
+      "OLN": "Olin Corp", "BWXT": "BWX Technologies", "MRCY": "Mercury Systems",
+      "GE": "GE Aerospace", "BA": "Boeing", "LDOS": "Leidos",
+      "SAIC": "SAIC", "BAH": "Booz Allen Hamilton", "CACI": "CACI International",
+      "PLTR": "Palantir"
+    };
+
+    async function loadBlocklist() {
+      var data = await api('blocklist');
+      if (!data) return;
+      var cats = data.categories || {};
+      var html = '';
+      for (var cat in cats) {
+        var tickers = cats[cat];
+        html += '<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:4px;padding:8px;">';
+        html += '<strong style="color:var(--text);">✓ ' + cat + '</strong>';
+        html += '<div style="margin-top:6px;padding-left:4px;">';
+        for (var i = 0; i < tickers.length; i++) {
+          var label = BLOCKLIST_LABELS[tickers[i]] || tickers[i];
+          html += '<span style="display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:2px 8px;margin:2px;font-size:11px;">' + tickers[i] + ' <span style="color:var(--muted);">(' + label + ')</span> <span style="cursor:pointer;color:var(--red);" onclick="removeFromBlocklist(\'' + tickers[i] + '\')">✕</span></span>';
+        }
+        html += '</div></div>';
+      }
+      document.getElementById('blocklistCategories').innerHTML = html;
+    }
+    loadBlocklist();
+
+    async function addToBlocklist() {
+      var input = document.getElementById('blocklistAddInput');
+      var ticker = input.value.trim().toUpperCase();
+      if (!ticker) return;
+      await fetch('/api/blocklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add: [ticker] }),
+      });
+      input.value = '';
+      document.getElementById('blocklistMsg').textContent = ticker + ' blocked';
+      setTimeout(function() { document.getElementById('blocklistMsg').textContent = ''; }, 3000);
+      loadBlocklist();
+    }
+
+    async function removeFromBlocklist(ticker) {
+      await fetch('/api/blocklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remove: [ticker] }),
+      });
+      loadBlocklist();
+    }
+
     // ---- Strategy Settings ----
     async function loadStrategy() {
       const s = await api('strategy');
@@ -1077,11 +1147,11 @@ GOOGL 10 140.00"></textarea>
       if (s.data_source === 'etrade') {
         eBtn.classList.add('connected');
         eBtn.textContent = '✓ E*TRADE Live';
-        $('subtitle').textContent = 'v2.1.1 · E*TRADE real-time data · Simulated trades · Paper only';
+        $('subtitle').textContent = 'v2.1.2 · E*TRADE real-time data · Simulated trades · Paper only';
       } else {
         eBtn.classList.remove('connected');
         eBtn.textContent = '🔗 E*TRADE';
-        $('subtitle').textContent = 'v2.1.1 · Yahoo Finance data · Simulated trades · Paper only';
+        $('subtitle').textContent = 'v2.1.2 · Yahoo Finance data · Simulated trades · Paper only';
       }
 
       // On first load, fetch live prices for held positions

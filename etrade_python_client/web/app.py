@@ -451,6 +451,53 @@ def api_set_strategy():
 
 
 # ------------------------------------------------------------------ #
+#  Exclusion Blocklist (ethical filtering)
+# ------------------------------------------------------------------ #
+
+BLOCKLIST_CATEGORIES = {
+    "Defense Contractors": ["LMT", "RTX", "NOC", "GD", "LHX", "HII", "TDG", "TXT", "HEI"],
+    "Weapons & Firearms": ["SWBI", "RGR", "AXON", "KTOS"],
+    "Ammunition": ["POWW", "VSTO", "OLN"],
+    "Military Technology": ["BWXT", "MRCY", "GE", "BA"],
+    "Defense IT & Surveillance": ["LDOS", "SAIC", "BAH", "CACI", "PLTR"],
+}
+
+
+@app.route("/api/blocklist", methods=["GET"])
+def api_get_blocklist():
+    """Get exclusion categories and their tickers."""
+    from strategy.screener import WEAPONS_DEFENSE_BLOCKLIST
+    return jsonify({
+        "categories": BLOCKLIST_CATEGORIES,
+        "active_tickers": sorted(WEAPONS_DEFENSE_BLOCKLIST),
+    })
+
+
+@app.route("/api/blocklist", methods=["POST"])
+def api_set_blocklist():
+    """Add or remove tickers from the blocklist."""
+    from strategy import screener
+    body = request.get_json()
+    if not body:
+        return jsonify({"error": "No data"}), 400
+
+    add = body.get("add", [])
+    remove = body.get("remove", [])
+
+    for ticker in add:
+        screener.WEAPONS_DEFENSE_BLOCKLIST.add(ticker.upper())
+    for ticker in remove:
+        screener.WEAPONS_DEFENSE_BLOCKLIST.discard(ticker.upper())
+
+    logger.info("Blocklist updated: added=%s removed=%s total=%d",
+                add, remove, len(screener.WEAPONS_DEFENSE_BLOCKLIST))
+
+    return jsonify({
+        "active_tickers": sorted(screener.WEAPONS_DEFENSE_BLOCKLIST),
+    })
+
+
+# ------------------------------------------------------------------ #
 #  E*TRADE Authentication (for real-time data)
 # ------------------------------------------------------------------ #
 

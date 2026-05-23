@@ -329,6 +329,23 @@ class BotEngine:
 
     def _run_cycle(self):
         """Execute one trading cycle."""
+        # Skip trading when market is closed
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        if now_et.weekday() >= 5 or now_et.hour * 60 + now_et.minute < 570 or now_et.hour >= 16:
+            self._log_activity("MARKET", f"Market closed ({now_et.strftime('%a %H:%M ET')}) — skipping")
+            return
+        # Verify not a holiday by checking if SPY traded today
+        try:
+            import yfinance as yf
+            hist = yf.Ticker("SPY").history(period="1d", interval="1m")
+            if hist.empty or hist.index[-1].strftime("%Y-%m-%d") != now_et.strftime("%Y-%m-%d"):
+                self._log_activity("MARKET", "Market closed today (holiday) — skipping")
+                return
+        except Exception:
+            pass  # If check fails, proceed with trading
+
         # Re-screen periodically
         if (cfg.WATCHLIST_MODE == "screener"
                 and self.screener

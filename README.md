@@ -1,4 +1,4 @@
-# AI Paper Trading Bot for E*TRADE — v2.1.1
+# AI Paper Trading Bot for E*TRADE — v2.1.2
 
 An AI-powered paper trading system that uses real market data from Yahoo Finance to simulate stock trading with technical analysis strategies. The bot combines SMA crossover, RSI momentum, and candlestick pattern detection (including Head & Shoulders) to generate signals from daily chart data. It automatically screens and selects trending stocks from a diverse, ethically filtered universe — no seed money required.
 
@@ -58,6 +58,7 @@ An AI-powered paper trading system that uses real market data from Yahoo Finance
 - **Signal explanations** — click-to-expand plain-English breakdown of why BUY/SELL/HOLD
 - **Catalysts & News** — live news headlines with summaries and upcoming earnings dates
 - **Tunable strategy** — adjust SMA, RSI, and sizing parameters from the dashboard in real-time
+- **Market hours aware** — only trades when the market is open (detects holidays automatically)
 
 ---
 
@@ -467,18 +468,11 @@ This allows the portfolio to rotate into stronger trends without needing externa
 
 ---
 
-## Ethical Filtering
+## Ethical Filtering (Optional)
 
-The following categories of companies are permanently excluded from the stock universe:
+The bot supports an optional category exclusion list that removes certain types of companies from the stock universe. By default, weapons and military-related stocks are excluded (defense contractors, weapons manufacturers, ammunition producers, military technology, and military surveillance companies).
 
-- **Major defense contractors** — Lockheed Martin, RTX (Raytheon), Northrop Grumman, General Dynamics, L3Harris, etc.
-- **Weapons manufacturers** — Smith & Wesson, Sturm Ruger, AMMO Inc
-- **Ammunition producers** — Olin Corporation, Vista Outdoor
-- **Military technology** — Kratos Defense, Mercury Systems, BWX Technologies
-- **Defense IT/consulting** — Leidos, SAIC, Booz Allen Hamilton, CACI International
-- **Military surveillance** — Palantir Technologies
-
-The full blocklist is in `strategy/screener.py` under `WEAPONS_DEFENSE_BLOCKLIST`. You can add or remove tickers there.
+You can customize this by editing the blocklist in `strategy/screener.py` under `WEAPONS_DEFENSE_BLOCKLIST` — add or remove tickers and categories to match your preferences.
 
 ---
 
@@ -570,7 +564,7 @@ Every `SCREENER_RERUN_CYCLES` cycles (default: 30). At 15-minute intervals, that
 Yes. Edit `STOCK_UNIVERSE` in `strategy/screener.py` and add tickers to the appropriate sector list.
 
 **Q: What happens when the market is closed?**
-Yahoo Finance returns the last closing price. The bot will still run but signals will not change until the market reopens and prices update.
+The bot automatically detects when the market is closed (evenings, weekends, and federal holidays) and skips all trading activity. It verifies market status by checking if SPY has traded today — no hardcoded holiday calendar needed. The bot stays running and resumes trading when the market reopens.
 
 ---
 

@@ -1,11 +1,11 @@
 ================================================================
-  GPA AI Paper Trading Bot v2.1.1 — Installation Instructions
+  GPA AI Paper Trading Bot v2.1.2 — Installation Instructions
 ================================================================
 
   This guide walks you through setting up the trading bot on a
   new Windows computer. Total time: about 5 minutes.
 
-  v2.1.1 Changes:
+  v2.1.2 Changes:
   - 15-minute polling interval (was 60 seconds)
   - 24-hour cooldown per symbol after each trade
   - Dollar-based position sizing ($1,000 per trade default)
@@ -17,6 +17,7 @@
   - Catalysts & News panel with article summaries
   - Tunable strategy settings from the dashboard
   - Single Start/Stop toggle button
+  - Market hours detection (skips trading on evenings, weekends, holidays)
 
 ================================================================
   STEP 1: Install Python

@@ -325,6 +325,32 @@ def run_bot():
             cycle += 1
             logger.info("=== Cycle %d ===", cycle)
 
+            # Skip trading when market is closed (checks real market status via Yahoo Finance)
+            from zoneinfo import ZoneInfo
+            now_et = datetime.now(ZoneInfo("America/New_York"))
+            market_open = False
+            # Quick time check first (no point querying if obviously closed)
+            if now_et.weekday() < 5 and now_et.hour * 60 + now_et.minute >= 570 and now_et.hour < 16:
+                # Verify market is actually open (handles holidays) by checking if SPY has traded today
+                try:
+                    import yfinance as yf
+                    spy = yf.Ticker("SPY")
+                    today_str = now_et.strftime("%Y-%m-%d")
+                    hist = spy.history(period="1d", interval="1m")
+                    if not hist.empty and hist.index[-1].strftime("%Y-%m-%d") == today_str:
+                        market_open = True
+                    else:
+                        logger.info("Market appears closed today (holiday/non-trading day)")
+                except Exception:
+                    # If check fails, fall back to time-based assumption
+                    market_open = True
+
+            if not market_open:
+                logger.info("Market closed (%s ET) — sleeping", now_et.strftime("%a %H:%M"))
+                print(f"  💤 Market closed ({now_et.strftime('%a %H:%M ET')}) — waiting...")
+                time.sleep(POLL_INTERVAL_SEC)
+                continue
+
             # Re-screen periodically to refresh picks
             if (WATCHLIST_MODE == "screener"
                     and cycle > 1
