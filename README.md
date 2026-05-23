@@ -8,7 +8,7 @@ An AI-powered paper trading system that uses real market data from Yahoo Finance
 
 ## Architecture
 
-!\[Architecture Diagram](docs/architecture.png)
+![Architecture Diagram](docs/architecture.png)
 
 ```
 Yahoo Finance ──→ Market Data ──→ Market Open? ──→ Strategy Engine ──→ Market Regime
