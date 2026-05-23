@@ -54,6 +54,9 @@
     .btn-screen { background: var(--purple); color: #fff; }
     .btn-etrade { background: var(--blue); color: #fff; }
     .btn-etrade.connected { background: var(--green); color: #000; }
+    .chart-range-btn { background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+    .chart-range-btn:hover { border-color: var(--blue); color: var(--text); }
+    .chart-range-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
     .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
     .panel {
       background: var(--card); border: 1px solid var(--border);
@@ -62,6 +65,11 @@
     .panel h2 {
       font-size: 14px; font-weight: 600; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.5px;
+      cursor: pointer; user-select: none;
+    }
+    .panel h2::after { content: ' ▾'; font-size: 10px; }
+    .panel h2.collapsed::after { content: ' ▸'; }
+    .panel .panel-body.hidden { display: none; }
       margin-bottom: 12px;
     }
     .metric-card {
@@ -143,13 +151,12 @@
   <div class="header">
     <div>
       <h1>📈 GPA AI Paper Trading Bot</h1>
-      <div class="subtitle" id="subtitle">v2.0 · Real prices · Simulated trades · Paper only</div>
+      <div class="subtitle" id="subtitle">v2.1.1 · Real prices · Simulated trades · Paper only</div>
     </div>
     <div class="controls">
       <span class="status-dot" id="statusDot"></span>
       <span id="statusText" style="color:var(--muted);font-size:13px;">Stopped</span>
-      <button class="btn-start" onclick="startBot()">▶ Start</button>
-      <button class="btn-stop" onclick="stopBot()">⏹ Stop</button>
+      <button id="toggleBtn" class="btn-start" onclick="toggleBot()">▶ Start</button>
       <button class="btn-reset" onclick="resetBot()">↺ Reset</button>
       <button class="btn-screen" onclick="openImportModal()" title="Import positions into paper portfolio">📥 Import</button>
       <button class="btn-etrade" onclick="connectEtrade()" id="etradeBtn" title="Connect E*TRADE for real-time data">🔗 E*TRADE</button>
@@ -160,17 +167,60 @@
     <div id="summaryCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px;"></div>
     <!-- Portfolio trend chart -->
     <div class="panel" style="margin-bottom:16px;" id="chartPanel">
-      <h2>📈 Portfolio Value Trend</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h2>📈 Portfolio Value Trend</h2>
+        <div id="chartRangeButtons" style="display:flex;gap:4px;">
+          <button class="chart-range-btn active" data-range="1D">1D</button>
+          <button class="chart-range-btn" data-range="1W">1W</button>
+          <button class="chart-range-btn" data-range="1M">1M</button>
+          <button class="chart-range-btn" data-range="3M">3M</button>
+          <button class="chart-range-btn" data-range="YTD">YTD</button>
+          <button class="chart-range-btn" data-range="1Y">1Y</button>
+          <button class="chart-range-btn" data-range="ALL">ALL</button>
+        </div>
+      </div>
       <div id="chartContainer" style="position:relative;height:200px;overflow:hidden;">
         <div class="empty" id="chartEmpty">No data yet — start the bot to begin tracking</div>
         <canvas id="portfolioChart" style="width:100%;height:100%;display:none;"></canvas>
       </div>
       <div id="chartStats" style="display:flex;gap:24px;margin-top:8px;font-size:12px;color:var(--muted);"></div>
     </div>
+    <!-- Strategy Settings -->
+    <div class="panel" style="margin-bottom:16px;" id="strategyPanel">
+      <h2 class="collapsed">⚙️ Strategy Settings</h2>
+      <div id="strategyBody" style="display:none;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px;">
+        <label style="font-size:12px;color:var(--muted);" title="Fast moving average period. Lower = more responsive to recent price changes, but more noise. Higher = smoother but slower to react. Range: 2-100. Recommended: 5-20. Default: 10.">Short SMA Window ℹ️
+          <input type="number" id="cfgShortSma" min="2" max="100" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <label style="font-size:12px;color:var(--muted);" title="Slow moving average period. When the short SMA crosses above this, it signals an uptrend (BUY). When it crosses below, it signals a downtrend (SELL). Range: 5-200. Recommended: 20-50. Default: 30.">Long SMA Window ℹ️
+          <input type="number" id="cfgLongSma" min="5" max="200" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <label style="font-size:12px;color:var(--muted);" title="Number of periods used to calculate RSI (Relative Strength Index). RSI measures momentum on a 0-100 scale. Range: 2-50. Recommended: 7-21. Default: 14.">RSI Period ℹ️
+          <input type="number" id="cfgRsiPeriod" min="2" max="50" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <label style="font-size:12px;color:var(--muted);" title="When RSI exceeds this value, the stock is considered overbought and a SELL signal is triggered. Lower = more conservative (sells sooner). Range: 50-95. Recommended: 65-80. Default: 70.">RSI Overbought ℹ️
+          <input type="number" id="cfgRsiOb" min="50" max="95" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <label style="font-size:12px;color:var(--muted);" title="When RSI drops below this value, the stock is considered oversold. Bullish candlestick patterns near this level can trigger a BUY. Range: 5-50. Recommended: 20-35. Default: 30.">RSI Oversold ℹ️
+          <input type="number" id="cfgRsiOs" min="5" max="50" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <label style="font-size:12px;color:var(--muted);" title="Dollar amount to invest per trade. The bot calculates shares as: $amount ÷ share price. Equal dollar exposure regardless of stock price. Range: $100-$50,000. Recommended: $500-$2,000. Default: $1,000.">Trade Amount ($) ℹ️
+          <input type="number" id="cfgTradeDollar" min="100" max="50000" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <label style="font-size:12px;color:var(--muted);" title="Hours to wait after trading a symbol before trading it again. Prevents overtrading on noisy signals. Set to 0 to disable. Range: 0-168 (1 week). Recommended: 12-48. Default: 24.">Cooldown (hours) ℹ️
+          <input type="number" id="cfgCooldown" min="0" max="168" style="display:block;width:100%;margin-top:4px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;">
+        </label>
+        <div style="display:flex;align-items:end;">
+          <button onclick="saveStrategy()" style="padding:6px 16px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Save</button>
+          <span id="strategySaveMsg" style="margin-left:8px;font-size:11px;color:var(--green);"></span>
+        </div>
+      </div>
+    </div>
     <!-- Main grid -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
       <div id="positionsCard" class="panel"></div>
       <div id="screenerCard" class="panel"></div>
+      <div id="catalystCard" class="panel" style="grid-column:1/-1;"></div>
       <div id="tradesCard" class="panel" style="grid-column:1/-1;"></div>
       <div id="activityCard" class="panel" style="grid-column:1/-1;"></div>
     </div>
@@ -254,6 +304,19 @@ GOOGL 10 140.00"></textarea>
   <script>
     const $ = id => document.getElementById(id);
 
+    // ---- Collapsible panels ----
+    document.addEventListener('click', function(e) {
+      const h2 = e.target.closest('.panel h2');
+      if (!h2) return;
+      h2.classList.toggle('collapsed');
+      // Hide all siblings after the h2
+      let el = h2.nextElementSibling;
+      while (el) {
+        el.style.display = h2.classList.contains('collapsed') ? 'none' : '';
+        el = el.nextElementSibling;
+      }
+    });
+
     // ---- API calls ----
     async function api(path, method='GET') {
       try {
@@ -263,6 +326,10 @@ GOOGL 10 140.00"></textarea>
     }
     function startBot() { api('start', 'POST'); }
     function stopBot() { api('stop', 'POST'); }
+    let _botRunning = false;
+    function toggleBot() {
+      if (_botRunning) { stopBot(); } else { startBot(); }
+    }
     function resetBot() {
       if (confirm('Reset portfolio? This deletes all trade history.'))
         api('reset', 'POST');
@@ -555,7 +622,7 @@ GOOGL 10 140.00"></textarea>
       const r = await api('limits');
       if (r) {
         window._symbolLimits = r.symbol_limits || {};
-        window._defaultTradeQty = r.default_trade_qty || 10;
+        window._defaultTradeQty = r.default_trade_qty || 1000;
       }
     }
     loadLimits();
@@ -563,8 +630,8 @@ GOOGL 10 140.00"></textarea>
     async function saveLimit(symbol) {
       const buyEl = document.querySelector(`[data-limit-buy="${symbol}"]`);
       const sellEl = document.querySelector(`[data-limit-sell="${symbol}"]`);
-      const maxBuy = parseInt(buyEl.value) || 0;
-      const maxSell = parseInt(sellEl.value) || 0;
+      const maxBuy = buyEl.value === '' ? 0 : parseInt(buyEl.value) || 0;
+      const maxSell = sellEl.value === '' ? 0 : parseInt(sellEl.value) || 0;
       const r = await fetch('/api/limits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -575,25 +642,28 @@ GOOGL 10 140.00"></textarea>
     }
 
     function renderPositions(positions) {
-      // Skip re-render if user is editing a limit input
+      // Skip re-render if user is editing a limit input or viewing signal explanation
       const focused = document.activeElement;
       if (focused && focused.dataset && (focused.dataset.limitBuy || focused.dataset.limitSell)) {
         return;
       }
+      if (document.getElementById('signal-detail')) {
+        return;
+      }
       const excluded = new Set(window._excludedSymbols || []);
       const limits = window._symbolLimits || {};
-      const defQty = window._defaultTradeQty || 10;
+      const defQty = window._defaultTradeQty || 1000;
       let html = '<h2>📊 Positions</h2>';
       if (!positions.length) {
         html += '<div class="empty">No positions — click 📥 Import to add holdings</div>';
       } else {
-        html += '<div class="scroll-box"><table><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>Value</th><th>P&L</th><th>Signal</th><th>Buy Limit</th><th>Sell Limit</th><th>Status</th></tr>';
+        html += '<div class="scroll-box"><table><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>Value</th><th>P&L</th><th>Signal</th><th>Buy $ Limit</th><th>Sell $ Limit</th><th>Status</th></tr>';
         for (const p of positions) {
           const pnlCls = (p.pnl||0) >= 0 ? 'pos' : 'neg';
           const isExcluded = excluded.has(p.symbol);
           const lim = limits[p.symbol] || {};
-          const maxBuy = lim.max_buy != null ? lim.max_buy : defQty;
-          const maxSell = lim.max_sell != null ? lim.max_sell : defQty;
+          const maxBuy = lim.max_buy != null ? lim.max_buy : '';
+          const maxSell = lim.max_sell != null ? lim.max_sell : '';
           const statusBadge = isExcluded
             ? `<span class="status-badge protected" onclick="toggleStatus('${p.symbol}', false)" title="Click to make tradeable">🔒 PROTECTED</span>`
             : `<span class="status-badge tradeable" onclick="toggleStatus('${p.symbol}', true)" title="Click to protect">📈 TRADEABLE</span>`;
@@ -604,12 +674,12 @@ GOOGL 10 140.00"></textarea>
             <td>${p.mkt_price ? fmtDollar(p.mkt_price) : '<span style="color:var(--muted)">...</span>'}</td>
             <td>${p.mkt_value ? fmtDollar(p.mkt_value) : '—'}</td>
             <td><span class="${pnlCls}">${p.pnl != null ? fmtDollar(p.pnl) + ' (' + fmtPct(p.pnl_pct) + ')' : '—'}</span></td>
-            <td>${fmtSignal(p.signal)}</td>
-            <td><input type="number" data-limit-buy="${p.symbol}" value="${maxBuy}" min="0" max="9999"
-                 style="width:55px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;"
+            <td>${fmtSignal(p.signal)}<br><span class="candle-badge" id="candle-${p.symbol}" style="font-size:10px;"></span> <span class="signal-arrow" data-symbol="${p.symbol}" style="cursor:pointer;font-size:10px;">▶</span></td>
+            <td><span style="color:var(--muted);font-size:12px;">$</span><input type="number" data-limit-buy="${p.symbol}" value="${maxBuy}" min="0" max="99999" placeholder="auto"
+                 style="width:60px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;"
                  onclick="this.select()" onblur="saveLimit('${p.symbol}')"></td>
-            <td><input type="number" data-limit-sell="${p.symbol}" value="${maxSell}" min="0" max="9999"
-                 style="width:55px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;"
+            <td><span style="color:var(--muted);font-size:12px;">$</span><input type="number" data-limit-sell="${p.symbol}" value="${maxSell}" min="0" max="99999" placeholder="auto"
+                 style="width:60px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;"
                  onclick="this.select()" onblur="saveLimit('${p.symbol}')"></td>
             <td>${statusBadge}</td>
           </tr>`;
@@ -617,6 +687,33 @@ GOOGL 10 140.00"></textarea>
         html += '</table></div>';
       }
       $('positionsCard').innerHTML = html;
+    }
+
+    // Fetch and display candle patterns for positions
+    let lastPatternFetch = 0;
+    async function fetchCandlePatterns(positions) {
+      const now = Date.now();
+      if (now - lastPatternFetch < 60000) return;
+      lastPatternFetch = now;
+      const symbols = (positions || []).map(p => p.symbol).join(',');
+      if (!symbols) return;
+      const data = await api('candle-patterns?symbols=' + symbols);
+      if (!data) return;
+      const labels = {
+        'BULLISH_ENGULFING': '🟢 Engulfing', 'BEARISH_ENGULFING': '🔴 Engulfing',
+        'HAMMER': '🟢 Hammer', 'SHOOTING_STAR': '🔴 Star',
+        'HEAD_AND_SHOULDERS': '🔴 H&S', 'INVERSE_HEAD_AND_SHOULDERS': '🟢 Inv H&S',
+        'DOJI': '⚪ Doji'
+      };
+      for (const [sym, patterns] of Object.entries(data)) {
+        const el = document.getElementById('candle-' + sym);
+        if (el && patterns.length > 0) {
+          el.textContent = patterns.map(p => labels[p] || p).join(' ');
+        } else if (el) {
+          el.textContent = '—';
+          el.style.color = 'var(--muted)';
+        }
+      }
     }
 
     function renderActivity(log) {
@@ -688,13 +785,42 @@ GOOGL 10 140.00"></textarea>
     // ---- Portfolio trend chart ----
     let lastChartFetch = 0;
 
+    let chartRange = '1D';
+
+    // Wire up range buttons
+    document.querySelectorAll('.chart-range-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.chart-range-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        chartRange = btn.dataset.range;
+        lastChartFetch = 0; // force refresh
+        renderChart();
+      });
+    });
+
+    function getRangeSince(range) {
+      const now = new Date();
+      switch (range) {
+        case '1D': return new Date(now - 24*60*60*1000).toISOString().slice(0,19);
+        case '1W': return new Date(now - 7*24*60*60*1000).toISOString().slice(0,19);
+        case '1M': return new Date(now.getFullYear(), now.getMonth()-1, now.getDate()).toISOString().slice(0,19);
+        case '3M': return new Date(now.getFullYear(), now.getMonth()-3, now.getDate()).toISOString().slice(0,19);
+        case 'YTD': return `${now.getFullYear()}-01-01T00:00:00`;
+        case '1Y': return new Date(now.getFullYear()-1, now.getMonth(), now.getDate()).toISOString().slice(0,19);
+        case 'ALL': return null;
+        default: return null;
+      }
+    }
+
     async function renderChart() {
       // Only fetch chart data every 30 seconds
       const now = Date.now();
       if (now - lastChartFetch < 30000) return;
       lastChartFetch = now;
 
-      const snapshots = await api('history/snapshots?limit=200');
+      const since = getRangeSince(chartRange);
+      const url = since ? `history/snapshots?limit=5000&since=${since}` : 'history/snapshots?limit=5000';
+      const snapshots = await api(url);
       if (!snapshots || snapshots.length < 2) {
         $('chartEmpty').style.display = 'block';
         $('portfolioChart').style.display = 'none';
@@ -806,6 +932,135 @@ GOOGL 10 140.00"></textarea>
       `;
     }
 
+    // ---- Signal Explanation (click-to-expand via event delegation) ----
+    document.addEventListener('click', async function(e) {
+      const arrow = e.target.closest('.signal-arrow');
+      if (!arrow) return;
+      const symbol = arrow.dataset.symbol;
+      if (!symbol) return;
+
+      const existing = document.getElementById('signal-detail');
+      if (existing && existing.dataset.symbol === symbol) {
+        existing.remove();
+        arrow.textContent = '▶';
+        return;
+      }
+      if (existing) existing.remove();
+      document.querySelectorAll('.signal-arrow').forEach(function(a) { a.textContent = '▶'; });
+
+      arrow.textContent = '⏳';
+      var data = await api('signal-explain/' + symbol);
+      if (!data) { arrow.textContent = '▶'; return; }
+      arrow.textContent = '▼';
+
+      var div = document.createElement('div');
+      div.id = 'signal-detail';
+      div.dataset.symbol = symbol;
+      div.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:8px;font-size:12px;line-height:1.8;';
+      div.innerHTML = '<strong>' + data.signal + ' — ' + symbol + '</strong><br>' +
+        data.summary + '<br><br>' +
+        (data.reasons || []).join('<br>');
+      document.getElementById('positionsCard').appendChild(div);
+    });
+
+    // ---- Catalyst Tracker ----
+    let lastCatalystFetch = 0;
+    async function renderCatalysts(positions) {
+      const now = Date.now();
+      if (now - lastCatalystFetch < 120000) return; // refresh every 2 min
+      lastCatalystFetch = now;
+
+      const symbols = (positions || []).map(p => p.symbol).slice(0, 8);
+      if (!symbols.length) {
+        $('catalystCard').innerHTML = '<h2>📅 Catalysts & News</h2><div class="empty">No positions to track</div>';
+        return;
+      }
+
+      let html = '<h2>📅 Catalysts & News</h2><div class="scroll-box" style="max-height:400px;overflow-y:auto;"><table><tr><th>Symbol</th><th>Headline</th><th>Source</th><th>Earnings</th></tr>';
+
+      for (const sym of symbols) {
+        const data = await api('catalysts/' + sym);
+        if (!data) continue;
+
+        const earnings = data.earnings ? data.earnings.join(', ') : (data.earnings_info ? Object.values(data.earnings_info).join(', ') : '—');
+        const news = data.news || [];
+
+        if (news.length > 0) {
+          for (let i = 0; i < Math.min(news.length, 3); i++) {
+            const n = news[i];
+            const id = 'news-' + sym + '-' + i;
+            const safeSummary = (n.summary || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            html += `<tr>
+              <td>${i === 0 ? '<strong>' + sym + '</strong>' : ''}</td>
+              <td><span class="news-headline" data-id="${id}" data-link="${n.link || ''}" data-summary="${safeSummary}" style="cursor:pointer;color:var(--blue);font-size:${i === 0 ? '12' : '11'}px;">${n.title}</span>
+                <div id="${id}" style="display:none;margin-top:6px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:11px;line-height:1.6;"></div>
+              </td>
+              <td style="font-size:11px;color:var(--muted);">${n.publisher}</td>
+              <td style="font-size:11px;">${i === 0 ? earnings : ''}</td>
+            </tr>`;
+          }
+        } else {
+          html += `<tr><td><strong>${sym}</strong></td><td style="color:var(--muted);">No recent news</td><td></td><td style="font-size:11px;">${earnings}</td></tr>`;
+        }
+      }
+      html += '</table></div>';
+      $('catalystCard').innerHTML = html;
+    }
+
+    // News headline click-to-expand
+    document.addEventListener('click', function(e) {
+      var headline = e.target.closest('.news-headline');
+      if (!headline) return;
+      var id = headline.dataset.id;
+      var div = document.getElementById(id);
+      if (!div) return;
+
+      if (div.style.display !== 'none') {
+        div.style.display = 'none';
+        return;
+      }
+
+      var link = headline.dataset.link;
+      var summary = headline.dataset.summary || 'No summary available.';
+      div.style.display = 'block';
+      div.innerHTML = '<p style="margin:0 0 8px 0;color:var(--text);">' + summary + '</p>' +
+        (link ? '<a href="' + link + '" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;">📖 Read full article →</a>' : '');
+    });
+
+    // ---- Strategy Settings ----
+    async function loadStrategy() {
+      const s = await api('strategy');
+      document.getElementById('cfgShortSma').value = s ? s.short_sma_window : 10;
+      document.getElementById('cfgLongSma').value = s ? s.long_sma_window : 30;
+      document.getElementById('cfgRsiPeriod').value = s ? s.rsi_period : 14;
+      document.getElementById('cfgRsiOb').value = s ? s.rsi_overbought : 70;
+      document.getElementById('cfgRsiOs').value = s ? s.rsi_oversold : 30;
+      document.getElementById('cfgTradeDollar').value = s ? s.trade_dollar_amount : 1000;
+      document.getElementById('cfgCooldown').value = s ? s.cooldown_hours : 24;
+    }
+    loadStrategy();
+
+    async function saveStrategy() {
+      const body = {
+        short_sma_window: parseInt(document.getElementById('cfgShortSma').value),
+        long_sma_window: parseInt(document.getElementById('cfgLongSma').value),
+        rsi_period: parseInt(document.getElementById('cfgRsiPeriod').value),
+        rsi_overbought: parseFloat(document.getElementById('cfgRsiOb').value),
+        rsi_oversold: parseFloat(document.getElementById('cfgRsiOs').value),
+        trade_dollar_amount: parseInt(document.getElementById('cfgTradeDollar').value),
+        cooldown_hours: parseInt(document.getElementById('cfgCooldown').value),
+      };
+      const r = await fetch('/api/strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        document.getElementById('strategySaveMsg').textContent = '✓ Saved';
+        setTimeout(() => document.getElementById('strategySaveMsg').textContent = '', 3000);
+      }
+    }
+
     // ---- Polling loop ----
     let firstLoad = true;
     window._excludedSymbols = [];
@@ -822,11 +1077,11 @@ GOOGL 10 140.00"></textarea>
       if (s.data_source === 'etrade') {
         eBtn.classList.add('connected');
         eBtn.textContent = '✓ E*TRADE Live';
-        $('subtitle').textContent = 'v2.0 · E*TRADE real-time data · Simulated trades · Paper only';
+        $('subtitle').textContent = 'v2.1.1 · E*TRADE real-time data · Simulated trades · Paper only';
       } else {
         eBtn.classList.remove('connected');
         eBtn.textContent = '🔗 E*TRADE';
-        $('subtitle').textContent = 'v2.0 · Yahoo Finance data · Simulated trades · Paper only';
+        $('subtitle').textContent = 'v2.1.1 · Yahoo Finance data · Simulated trades · Paper only';
       }
 
       // On first load, fetch live prices for held positions
@@ -839,19 +1094,28 @@ GOOGL 10 140.00"></textarea>
       // Status indicator
       const dot = $('statusDot');
       const txt = $('statusText');
+      const toggleBtn = $('toggleBtn');
       if (s.running) {
         dot.classList.add('running');
         txt.textContent = `Running · Cycle ${s.cycle}`;
+        toggleBtn.textContent = '⏹ Stop';
+        toggleBtn.className = 'btn-stop';
+        _botRunning = true;
       } else {
         dot.classList.remove('running');
         txt.textContent = s.error ? 'Error: ' + s.error : 'Stopped';
+        toggleBtn.textContent = '▶ Start';
+        toggleBtn.className = 'btn-start';
+        _botRunning = false;
       }
 
       renderSummary(s);
       renderPositions(s.positions);
+      fetchCandlePatterns(s.positions);
       renderActivity(s.activity_log);
       renderScreener(s.screen_results);
       renderTrades(s.trade_log);
+      renderCatalysts(s.positions);
       renderChart();
     }
 

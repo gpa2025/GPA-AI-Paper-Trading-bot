@@ -109,7 +109,7 @@ def api_get_config():
         "watchlist_mode": cfg.WATCHLIST_MODE,
         "watchlist": cfg.WATCHLIST,
         "excluded_symbols": list(cfg.EXCLUDED_SYMBOLS),
-        "default_trade_qty": cfg.DEFAULT_TRADE_QTY,
+        "default_trade_qty": cfg.TRADE_DOLLAR_AMOUNT,
         "max_position_size": cfg.MAX_POSITION_SIZE,
         "poll_interval_sec": cfg.POLL_INTERVAL_SEC,
         "starting_cash": cfg.STARTING_CASH,
@@ -162,9 +162,9 @@ def api_toggle_exclude():
 
 @app.route("/api/limits", methods=["GET"])
 def api_get_limits():
-    """Get all per-symbol trade limits."""
+    """Get all per-symbol trade limits (dollar amounts)."""
     return jsonify({
-        "default_trade_qty": cfg.DEFAULT_TRADE_QTY,
+        "default_trade_qty": cfg.TRADE_DOLLAR_AMOUNT,
         "symbol_limits": cfg.SYMBOL_LIMITS,
     })
 
@@ -187,13 +187,13 @@ def api_set_limit():
     if max_buy == 0 and max_sell == 0:
         # Remove custom limit — fall back to default
         cfg.SYMBOL_LIMITS.pop(symbol, None)
-        logger.info("Removed trade limits for %s (using default: %d)", symbol, cfg.DEFAULT_TRADE_QTY)
+        logger.info("Removed trade limits for %s (using default: $%d)", symbol, cfg.TRADE_DOLLAR_AMOUNT)
     else:
         cfg.SYMBOL_LIMITS[symbol] = {
-            "max_buy": max_buy if max_buy is not None else cfg.DEFAULT_TRADE_QTY,
-            "max_sell": max_sell if max_sell is not None else cfg.DEFAULT_TRADE_QTY,
+            "max_buy": max_buy if max_buy is not None else cfg.TRADE_DOLLAR_AMOUNT,
+            "max_sell": max_sell if max_sell is not None else cfg.TRADE_DOLLAR_AMOUNT,
         }
-        logger.info("Set trade limits for %s: buy=%s, sell=%s", symbol,
+        logger.info("Set trade limits for %s: buy=$%s, sell=$%s", symbol,
                      cfg.SYMBOL_LIMITS[symbol]["max_buy"], cfg.SYMBOL_LIMITS[symbol]["max_sell"])
 
     # Persist the change
@@ -205,6 +205,249 @@ def api_set_limit():
         "default": cfg.DEFAULT_TRADE_QTY,
         "all_limits": cfg.SYMBOL_LIMITS,
     })
+
+
+# ------------------------------------------------------------------ #
+#  Strategy Parameters
+# ------------------------------------------------------------------ #
+
+@app.route("/api/strategy", methods=["GET"])
+def api_get_strategy():
+    """Get current strategy parameters."""
+    return jsonify({
+        "short_sma_window": cfg.SHORT_SMA_WINDOW,
+        "long_sma_window": cfg.LONG_SMA_WINDOW,
+        "rsi_period": cfg.RSI_PERIOD,
+        "rsi_overbought": cfg.RSI_OVERBOUGHT,
+        "rsi_oversold": cfg.RSI_OVERSOLD,
+        "trade_dollar_amount": cfg.TRADE_DOLLAR_AMOUNT,
+        "cooldown_hours": cfg.COOLDOWN_HOURS,
+    })
+
+
+@app.route("/api/catalysts/<symbol>")
+def api_catalysts(symbol):
+    """Get upcoming catalysts and recent news for a symbol."""
+    import yfinance as yf
+
+    symbol = symbol.upper()
+    try:
+        ticker = yf.Ticker(symbol)
+        result = {"symbol": symbol, "news": [], "earnings": None}
+
+        # News
+        news = getattr(ticker, "news", None)
+        if news:
+            for item in news[:8]:
+                content = item.get("content", item)
+                title = content.get("title", "")
+                link = content.get("canonicalUrl", {}).get("url", "") if isinstance(content.get("canonicalUrl"), dict) else content.get("link", "")
+                publisher = content.get("provider", {}).get("displayName", "") if isinstance(content.get("provider"), dict) else content.get("publisher", "")
+                summary = content.get("summary", "")
+                if title:
+                    result["news"].append({
+                        "title": title,
+                        "link": link,
+                        "publisher": publisher,
+                        "summary": summary,
+                    })
+
+        # Earnings dates
+        try:
+            cal = ticker.calendar
+            if cal is not None and not (hasattr(cal, "empty") and cal.empty):
+                if isinstance(cal, dict):
+                    earnings_date = cal.get("Earnings Date")
+                    if earnings_date:
+                        if isinstance(earnings_date, list):
+                            result["earnings"] = [str(d) for d in earnings_date]
+                        else:
+                            result["earnings"] = [str(earnings_date)]
+                elif hasattr(cal, "to_dict"):
+                    result["earnings_info"] = {str(k): str(v) for k, v in cal.items() if v is not None}
+        except Exception:
+            pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"symbol": symbol, "error": str(e)}), 500
+
+
+@app.route("/api/candle-patterns")
+def api_candle_patterns():
+    """Get candlestick patterns for all held positions."""
+    import yfinance as yf
+    from strategy.signals import detect_candle_patterns
+
+    symbols = request.args.get("symbols", "")
+    if not symbols:
+        return jsonify({})
+
+    result = {}
+    for sym in symbols.split(","):
+        sym = sym.strip().upper()
+        if not sym:
+            continue
+        try:
+            hist = yf.Ticker(sym).history(period="3mo", interval="1d")
+            if hist.empty or len(hist) < 15:
+                result[sym] = []
+                continue
+            patterns = detect_candle_patterns(hist["Close"])
+            result[sym] = patterns
+        except Exception:
+            result[sym] = []
+
+    return jsonify(result)
+
+
+@app.route("/api/signal-explain/<symbol>")
+def api_signal_explain(symbol):
+    """Get plain-English explanation of the current signal for a symbol."""
+    import yfinance as yf
+    from strategy.indicators import sma, rsi
+    from strategy.signals import detect_candle_patterns
+
+    symbol = symbol.upper()
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="3mo", interval="1d")
+        if hist.empty or len(hist) < cfg.LONG_SMA_WINDOW + 1:
+            return jsonify({"symbol": symbol, "signal": "HOLD", "explanation": "Not enough data to generate a signal."})
+
+        close = hist["Close"]
+        short_sma_vals = sma(close, cfg.SHORT_SMA_WINDOW)
+        long_sma_vals = sma(close, cfg.LONG_SMA_WINDOW)
+        rsi_vals = rsi(close, cfg.RSI_PERIOD)
+
+        cur_short = float(short_sma_vals.iloc[-1])
+        prev_short = float(short_sma_vals.iloc[-2])
+        cur_long = float(long_sma_vals.iloc[-1])
+        prev_long = float(long_sma_vals.iloc[-2])
+        cur_rsi = float(rsi_vals.iloc[-1])
+        cur_price = float(close.iloc[-1])
+
+        in_uptrend = cur_short > cur_long
+        crossed_above = prev_short <= prev_long and cur_short > cur_long
+        crossed_below = prev_short >= prev_long and cur_short < cur_long
+
+        patterns = detect_candle_patterns(close)
+
+        # Build explanation
+        reasons = []
+        signal = "HOLD"
+
+        # Trend
+        if in_uptrend:
+            reasons.append(f"📈 **Uptrend**: Short SMA ({cfg.SHORT_SMA_WINDOW}-day) at ${cur_short:.2f} is above Long SMA ({cfg.LONG_SMA_WINDOW}-day) at ${cur_long:.2f}")
+        else:
+            reasons.append(f"📉 **Downtrend**: Short SMA ({cfg.SHORT_SMA_WINDOW}-day) at ${cur_short:.2f} is below Long SMA ({cfg.LONG_SMA_WINDOW}-day) at ${cur_long:.2f}")
+
+        if crossed_above:
+            reasons.append("⚡ **Fresh crossover UP** — short SMA just crossed above long SMA (bullish)")
+        elif crossed_below:
+            reasons.append("⚡ **Fresh crossover DOWN** — short SMA just crossed below long SMA (bearish)")
+
+        # RSI
+        if cur_rsi > cfg.RSI_OVERBOUGHT:
+            reasons.append(f"🔴 **RSI Overbought**: RSI at {cur_rsi:.1f} (above {cfg.RSI_OVERBOUGHT}) — stock is overextended")
+        elif cur_rsi < cfg.RSI_OVERSOLD:
+            reasons.append(f"🟢 **RSI Oversold**: RSI at {cur_rsi:.1f} (below {cfg.RSI_OVERSOLD}) — potential bounce")
+        elif 40 <= cur_rsi <= 65:
+            reasons.append(f"✅ **RSI Sweet Spot**: RSI at {cur_rsi:.1f} — healthy momentum, good entry zone")
+        else:
+            reasons.append(f"⚪ **RSI Neutral**: RSI at {cur_rsi:.1f}")
+
+        # Candle patterns
+        if patterns:
+            pattern_names = {"BULLISH_ENGULFING": "Bullish Engulfing 🟢", "BEARISH_ENGULFING": "Bearish Engulfing 🔴",
+                           "HAMMER": "Hammer 🟢", "SHOOTING_STAR": "Shooting Star 🔴", "DOJI": "Doji ⚪",
+                           "HEAD_AND_SHOULDERS": "Head & Shoulders 🔴 (bearish reversal)",
+                           "INVERSE_HEAD_AND_SHOULDERS": "Inverse Head & Shoulders 🟢 (bullish reversal)"}
+            for p in patterns:
+                reasons.append(f"🕯️ **Candle Pattern**: {pattern_names.get(p, p)}")
+
+        # Determine signal
+        if crossed_below or cur_rsi > cfg.RSI_OVERBOUGHT:
+            signal = "SELL"
+        elif any(p in patterns for p in ["BEARISH_ENGULFING", "SHOOTING_STAR", "HEAD_AND_SHOULDERS"]) and not in_uptrend:
+            signal = "SELL"
+        elif in_uptrend and cur_rsi < cfg.RSI_OVERBOUGHT:
+            if crossed_above or (40 <= cur_rsi <= 65) or any(p in patterns for p in ["BULLISH_ENGULFING", "HAMMER", "INVERSE_HEAD_AND_SHOULDERS"]):
+                signal = "BUY"
+        elif any(p in patterns for p in ["BULLISH_ENGULFING", "HAMMER", "INVERSE_HEAD_AND_SHOULDERS"]) and cur_rsi < cfg.RSI_OVERSOLD + 10:
+            signal = "BUY"
+
+        # Summary
+        if signal == "BUY":
+            summary = f"The bot would BUY {symbol} here. The daily chart shows an uptrend with healthy momentum."
+        elif signal == "SELL":
+            summary = f"The bot would SELL {symbol} here. Momentum is fading or the stock is overextended."
+        else:
+            summary = f"The bot is HOLDING {symbol}. No clear entry or exit signal on the daily chart."
+
+        return jsonify({
+            "symbol": symbol,
+            "signal": signal,
+            "price": cur_price,
+            "summary": summary,
+            "reasons": reasons,
+            "indicators": {
+                "sma_short": round(cur_short, 2),
+                "sma_long": round(cur_long, 2),
+                "rsi": round(cur_rsi, 2),
+                "in_uptrend": in_uptrend,
+                "candle_patterns": patterns,
+            }
+        })
+    except Exception as e:
+        return jsonify({"symbol": symbol, "signal": "HOLD", "explanation": str(e)}), 500
+
+
+@app.route("/api/strategy", methods=["POST"])
+def api_set_strategy():
+    """Update strategy parameters at runtime."""
+    body = request.get_json()
+    if not body:
+        return jsonify({"error": "No data"}), 400
+
+    if "short_sma_window" in body:
+        cfg.SHORT_SMA_WINDOW = int(body["short_sma_window"])
+    if "long_sma_window" in body:
+        cfg.LONG_SMA_WINDOW = int(body["long_sma_window"])
+    if "rsi_period" in body:
+        cfg.RSI_PERIOD = int(body["rsi_period"])
+    if "rsi_overbought" in body:
+        cfg.RSI_OVERBOUGHT = float(body["rsi_overbought"])
+    if "rsi_oversold" in body:
+        cfg.RSI_OVERSOLD = float(body["rsi_oversold"])
+    if "trade_dollar_amount" in body:
+        cfg.TRADE_DOLLAR_AMOUNT = int(body["trade_dollar_amount"])
+    if "cooldown_hours" in body:
+        cfg.COOLDOWN_HOURS = int(body["cooldown_hours"])
+
+    # Update MIN_DATA_POINTS
+    cfg.MIN_DATA_POINTS = cfg.LONG_SMA_WINDOW + 1
+
+    # Re-create signal generator in the engine if running
+    if engine.signal_gen:
+        engine.signal_gen.short_window = cfg.SHORT_SMA_WINDOW
+        engine.signal_gen.long_window = cfg.LONG_SMA_WINDOW
+        engine.signal_gen.rsi_period = cfg.RSI_PERIOD
+        engine.signal_gen.rsi_overbought = cfg.RSI_OVERBOUGHT
+        engine.signal_gen.rsi_oversold = cfg.RSI_OVERSOLD
+
+    logger.info("Strategy updated: SMA(%d/%d) RSI(%d) OB=%.0f OS=%.0f",
+                cfg.SHORT_SMA_WINDOW, cfg.LONG_SMA_WINDOW, cfg.RSI_PERIOD,
+                cfg.RSI_OVERBOUGHT, cfg.RSI_OVERSOLD)
+
+    return jsonify({"status": "ok", "strategy": {
+        "short_sma_window": cfg.SHORT_SMA_WINDOW,
+        "long_sma_window": cfg.LONG_SMA_WINDOW,
+        "rsi_period": cfg.RSI_PERIOD,
+        "rsi_overbought": cfg.RSI_OVERBOUGHT,
+        "rsi_oversold": cfg.RSI_OVERSOLD,
+    }})
 
 
 # ------------------------------------------------------------------ #
@@ -425,6 +668,53 @@ def api_price_history(symbol):
     since = request.args.get("since")
     db = TradingDatabase(cfg.DB_FILE)
     return jsonify(db.get_price_history(symbol.upper(), limit=limit, since=since))
+
+
+@app.route("/api/chart/<symbol>")
+def api_chart_data(symbol):
+    """Get OHLC candle data with SMA and RSI overlays from Yahoo Finance."""
+    import yfinance as yf
+    import pandas as pd
+    from strategy.indicators import sma, rsi
+
+    period = request.args.get("period", "3mo")
+    interval = request.args.get("interval", "1d")
+
+    data = yf.download(symbol.upper(), period=period, interval=interval, progress=False)
+    if data.empty:
+        return jsonify({"error": "No data"}), 404
+
+    # Flatten multi-level columns if present
+    if hasattr(data.columns, 'levels'):
+        data.columns = data.columns.get_level_values(0)
+
+    close = data["Close"].squeeze()
+    sma_short = sma(close, cfg.SHORT_SMA_WINDOW)
+    sma_long = sma(close, cfg.LONG_SMA_WINDOW)
+    rsi_values = rsi(close, cfg.RSI_PERIOD)
+
+    candles = []
+    for i, (idx, row) in enumerate(data.iterrows()):
+        candles.append({
+            "t": idx.strftime("%Y-%m-%d") if interval == "1d" else str(idx),
+            "o": round(float(row["Open"]), 2),
+            "h": round(float(row["High"]), 2),
+            "l": round(float(row["Low"]), 2),
+            "c": round(float(row["Close"]), 2),
+            "sma_short": round(float(sma_short.iloc[i]), 2) if pd.notna(sma_short.iloc[i]) else None,
+            "sma_long": round(float(sma_long.iloc[i]), 2) if pd.notna(sma_long.iloc[i]) else None,
+            "rsi": round(float(rsi_values.iloc[i]), 2) if pd.notna(rsi_values.iloc[i]) else None,
+        })
+
+    return jsonify({
+        "symbol": symbol.upper(),
+        "interval": interval,
+        "sma_short_window": cfg.SHORT_SMA_WINDOW,
+        "sma_long_window": cfg.LONG_SMA_WINDOW,
+        "rsi_period": cfg.RSI_PERIOD,
+        "rsi_overbought": cfg.RSI_OVERBOUGHT,
+        "candles": candles,
+    })
 
 
 @app.route("/api/history/prices")

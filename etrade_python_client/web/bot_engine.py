@@ -129,7 +129,7 @@ class BotEngine:
                 "config": {
                     "watchlist_mode": cfg.WATCHLIST_MODE,
                     "poll_interval": cfg.POLL_INTERVAL_SEC,
-                    "default_trade_qty": cfg.DEFAULT_TRADE_QTY,
+                    "default_trade_qty": cfg.TRADE_DOLLAR_AMOUNT,
                     "stop_loss_pct": cfg.STOP_LOSS_PCT,
                     "take_profit_pct": cfg.TAKE_PROFIT_PCT,
                     "enable_rebalance": cfg.ENABLE_REBALANCE,

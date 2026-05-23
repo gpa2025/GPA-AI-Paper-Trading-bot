@@ -1,6 +1,6 @@
-# AI Paper Trading Bot for E*TRADE
+# AI Paper Trading Bot for E*TRADE — v2.1.1
 
-An AI-powered paper trading system that uses real market data from Yahoo Finance to simulate stock trading with technical analysis strategies. The bot automatically screens and selects trending stocks from a diverse, ethically filtered universe — no seed money required.
+An AI-powered paper trading system that uses real market data from Yahoo Finance to simulate stock trading with technical analysis strategies. The bot combines SMA crossover, RSI momentum, and candlestick pattern detection (including Head & Shoulders) to generate signals from daily chart data. It automatically screens and selects trending stocks from a diverse, ethically filtered universe — no seed money required.
 
 **This is a paper trading tool for testing and education only. No real orders are placed.**
 
@@ -53,6 +53,11 @@ An AI-powered paper trading system that uses real market data from Yahoo Finance
 - **24-hour cooldown** per symbol to prevent overtrading on noise
 - **Seed portfolio** support to mirror your real brokerage account
 - **Periodic re-screening** to refresh stock picks as market conditions change
+- **Candlestick pattern detection** — engulfing, hammer, shooting star, Head & Shoulders, Inverse H&S
+- **Daily timeframe signals** — ignores intraday noise, uses only daily close data
+- **Signal explanations** — click-to-expand plain-English breakdown of why BUY/SELL/HOLD
+- **Catalysts & News** — live news headlines with summaries and upcoming earnings dates
+- **Tunable strategy** — adjust SMA, RSI, and sizing parameters from the dashboard in real-time
 
 ---
 
@@ -150,6 +155,28 @@ python trading_bot.py
 ```
 
 Press `Ctrl+C` to stop. The bot saves its state to `paper_portfolio.json` and will resume where it left off on the next run.
+
+---
+
+## Web Dashboard
+
+The bot includes a web dashboard at `http://127.0.0.1:5000` with:
+
+- **Portfolio Value Trend** — chart with 1D/1W/1M/3M/YTD/1Y/ALL time ranges
+- **Positions Table** — live prices, P&L, signals, candlestick patterns, dollar-based trade limits
+- **Signal Explanations** — click ▶ next to any signal for a plain-English breakdown (SMA trend, RSI level, candle patterns detected)
+- **Candlestick Patterns** — displayed under each signal (Engulfing, Hammer, H&S, etc.)
+- **Catalysts & News** — recent headlines with expandable summaries and links to full articles, plus upcoming earnings dates
+- **Strategy Settings** — tune SMA windows, RSI thresholds, trade amount, and cooldown in real-time
+- **Start/Stop Toggle** — single button that changes color based on bot state
+- **Collapsible panels** — click any panel header to collapse/expand
+- **Market Regime Filter** — blocks all buys when SPY is below its 50-day SMA (risk-off mode)
+
+Launch the dashboard:
+```bash
+cd etrade_python_client
+python run_dashboard.py
+```
 
 ---
 
@@ -266,6 +293,16 @@ ENABLE_STOP_LOSS = True
 ENABLE_TAKE_PROFIT = True
 ```
 
+### Market Regime Filter
+
+```python
+ENABLE_MARKET_REGIME = True
+REGIME_BENCHMARK = "SPY"       # ETF to gauge market health
+REGIME_SMA_PERIOD = 50         # SPY must be above its 50-day SMA to allow buys
+```
+
+When enabled, the bot checks if SPY is above its 50-day SMA before allowing any BUY signals. If SPY is below (market in downtrend), all buys are suppressed — the bot will only HOLD or SELL. This prevents buying into a falling market where macro selling pressure drags down even strong stocks.
+
 ---
 
 ## Code Architecture
@@ -279,10 +316,9 @@ The `MarketData` class wraps Yahoo Finance to provide:
 - `get_quote(symbol)` — Fetches a real-time quote with price, bid, ask, volume, and change data
 - `get_price(symbol)` — Returns just the last trade price
 - `fetch_history(symbol, period, interval)` — Downloads historical closing prices and stores them in memory. This seeds the strategy so signals can fire on the first cycle
-- `record_price(symbol, price)` — Appends a live price to the in-memory history
 - `get_price_history(symbol)` — Returns the full price series as a pandas Series
 
-The module maintains an in-memory price history per symbol. Historical data is fetched once at startup, then live prices are appended each cycle.
+The module maintains an in-memory price history per symbol. Historical daily data is fetched at startup and refreshed every ~4 hours. Signal generation uses only daily close data to avoid intraday noise. Live prices (polled every 15 minutes) are used only for stop-loss/take-profit checks and portfolio valuation.
 
 ### Strategy Module
 
@@ -299,13 +335,20 @@ All functions accept a pandas Series and return a pandas Series.
 
 **File:** `strategy/signals.py`
 
-The `SignalGenerator` class combines SMA crossover and RSI to produce trading signals:
+The `SignalGenerator` class combines SMA crossover, RSI, and candlestick pattern detection to produce trading signals:
 
-- **BUY** when the short SMA crosses above the long SMA AND RSI is below the overbought threshold
-- **SELL** when the short SMA crosses below the long SMA OR RSI exceeds the overbought threshold
+- **BUY** when the short SMA crosses above the long SMA AND RSI is below the overbought threshold, confirmed by bullish candlestick patterns
+- **SELL** when the short SMA crosses below the long SMA OR RSI exceeds the overbought threshold, confirmed by bearish candlestick patterns
 - **HOLD** otherwise
 
-The generator requires at least `long_window + 1` data points before producing signals.
+**Candlestick patterns detected:**
+- Bullish Engulfing, Hammer → confirm BUY signals
+- Bearish Engulfing, Shooting Star → confirm SELL signals
+- Head and Shoulders → bearish reversal, triggers SELL
+- Inverse Head and Shoulders → bullish reversal, triggers BUY
+- Doji → indecision, logged for awareness
+
+The generator requires at least `long_window + 1` data points before producing signals. All signals are based on daily close data only (not intraday).
 
 ### Stock Screener Module
 
@@ -349,11 +392,12 @@ The bot also periodically re-runs the screener (every `SCREENER_RERUN_CYCLES` cy
 
 ## How the Strategy Works
 
-The bot uses a **dual-indicator momentum strategy**:
+The bot uses a **multi-indicator momentum strategy**:
 
 ```
 SMA Crossover (trend direction)
   + RSI (momentum strength)
+  + Candlestick Patterns (confirmation & reversal detection)
   = Trading Signal
 ```
 
@@ -366,8 +410,20 @@ SMA Crossover (trend direction)
 - RSI < 70 during an upward crossover → confirms BUY
 - This prevents buying into overextended rallies
 
+**Candlestick Pattern Confirmation:**
+- **Bullish Engulfing / Hammer** — confirms BUY in an uptrend or near oversold levels
+- **Bearish Engulfing / Shooting Star** — confirms SELL in a downtrend
+- **Head and Shoulders** — classic bearish reversal pattern (3 peaks, middle highest, price breaks neckline) → triggers SELL
+- **Inverse Head and Shoulders** — bullish reversal (3 troughs, middle lowest, price breaks neckline) → triggers BUY
+
+**Timeframe Discipline:**
+- Signals are generated from **daily close data only** (not intraday)
+- The 15-minute polling interval is used only for stop-loss/take-profit monitoring
+- Daily bars are refreshed every ~4 hours to capture the latest close
+- This prevents the bot from reacting to intraday noise
+
 **Why this combination?**
-SMA crossover alone generates too many false signals in choppy markets. RSI acts as a confirmation filter, reducing whipsaws. This is a well-known momentum strategy suitable for swing trading on daily timeframes.
+SMA crossover alone generates too many false signals in choppy markets. RSI acts as a momentum filter, and candlestick patterns provide visual confirmation of reversals. Head and Shoulders detection catches major trend changes that simple moving averages miss. All signals use daily timeframes suitable for swing trading.
 
 ---
 

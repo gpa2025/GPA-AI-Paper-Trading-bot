@@ -1,15 +1,22 @@
 ================================================================
-  GPA AI Paper Trading Bot v2.0 — Installation Instructions
+  GPA AI Paper Trading Bot v2.1.1 — Installation Instructions
 ================================================================
 
   This guide walks you through setting up the trading bot on a
   new Windows computer. Total time: about 5 minutes.
 
-  v2.0 Changes:
+  v2.1.1 Changes:
   - 15-minute polling interval (was 60 seconds)
   - 24-hour cooldown per symbol after each trade
   - Dollar-based position sizing ($1,000 per trade default)
   - Max 15% of portfolio in any single position
+  - Candlestick pattern detection (engulfing, hammer, H&S)
+  - Head and Shoulders / Inverse H&S reversal signals
+  - Daily timeframe signals only (ignores intraday noise)
+  - Signal explanations (click ▶ in positions table)
+  - Catalysts & News panel with article summaries
+  - Tunable strategy settings from the dashboard
+  - Single Start/Stop toggle button
 
 ================================================================
   STEP 1: Install Python
@@ -163,6 +170,11 @@
     STOP_LOSS_PCT = 0.05        # sell if down 5%
     TAKE_PROFIT_PCT = 0.10      # sell if up 10%
 
+  Market Regime Filter:
+    ENABLE_MARKET_REGIME = True  # block buys when market is weak
+    REGIME_BENCHMARK = "SPY"     # check S&P 500 trend
+    REGIME_SMA_PERIOD = 50       # SPY must be above 50-day SMA
+
 ================================================================
   STEP 7: Start Trading
 ================================================================
@@ -202,6 +214,27 @@
     Edit the Buy/Sell dollar limit in the positions table.
     Click away to save. The bot sizes trades in dollar amounts
     (default $1,000 per trade).
+
+  Signal explanations:
+    Click the ▶ arrow next to any signal in the Positions table.
+    Expands a plain-English explanation of why BUY/SELL/HOLD,
+    including SMA trend, RSI level, and candlestick patterns.
+
+  Catalysts & News:
+    The dashboard shows recent news headlines for each position.
+    Click a headline to expand the article summary.
+    Click "Read full article" to open in a new browser tab.
+    Upcoming earnings dates are shown in the Earnings column.
+
+  Strategy tuning:
+    Click "Strategy Settings" to expand the tuning panel.
+    Adjust SMA windows, RSI thresholds, trade amount, cooldown.
+    Hover over any setting for an explanation with recommended ranges.
+    Click Save to apply changes to the running bot instantly.
+
+  Collapsible panels:
+    Click any panel header to collapse or expand it.
+    Useful for focusing on specific sections of the dashboard.
 
 ================================================================
   TROUBLESHOOTING

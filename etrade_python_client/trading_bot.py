@@ -35,7 +35,9 @@ from trading_config import (
     SCREENER_TOP_N, SCREENER_SMA_PERIOD, SCREENER_MIN_VOLUME,
     SCREENER_HISTORY, SCREENER_RERUN_CYCLES, SCREENER_SECTORS,
     TRADE_DOLLAR_AMOUNT, COOLDOWN_HOURS,
+    ENABLE_MARKET_REGIME, REGIME_BENCHMARK, REGIME_SMA_PERIOD,
 )
+from strategy.indicators import sma as compute_sma
 from strategy.screener import StockScreener, print_screening_results
 
 # ---------------------------------------------------------------------------
@@ -308,6 +310,11 @@ def run_bot():
         else:
             print(f"  {symbol}: WARNING — no historical data")
 
+    # Load benchmark data for market regime filter
+    if ENABLE_MARKET_REGIME:
+        spy_hist = market.fetch_history(REGIME_BENCHMARK, period="3mo", interval="1d")
+        print(f"  {REGIME_BENCHMARK}: loaded {len(spy_hist)} daily bars (regime filter)")
+
     print("\nStarting trading loop (Ctrl+C to stop)...\n")
 
     cycle = 0
@@ -333,6 +340,14 @@ def run_bot():
                         if len(market.get_price_history(symbol)) == 0:
                             market.fetch_history(symbol, period="3mo", interval="1d")
 
+            # Refresh daily price history every 16 cycles (~4 hours)
+            if cycle > 1 and (cycle - 1) % 16 == 0:
+                logger.info("Refreshing daily price history...")
+                for symbol in tradeable:
+                    market.fetch_history(symbol, period="3mo", interval="1d")
+                if ENABLE_MARKET_REGIME:
+                    market.fetch_history(REGIME_BENCHMARK, period="3mo", interval="1d")
+
             # --- Phase 1: Collect prices and signals for all symbols ---
             signals: dict[str, str] = {}
 
@@ -343,10 +358,11 @@ def run_bot():
                     continue
 
                 current_prices[symbol] = price
-                market.record_price(symbol, price)
+                # Signal generation uses daily close data only (fetched at startup)
+                # Live price is only used for stop-loss/take-profit and portfolio valuation
                 history = market.get_price_history(symbol)
 
-                logger.info("%s  price=$%.2f  history=%d pts", symbol, price, len(history))
+                logger.info("%s  price=$%.2f  history=%d daily bars", symbol, price, len(history))
 
                 if len(history) < MIN_DATA_POINTS:
                     signals[symbol] = SIGNAL_HOLD
@@ -386,6 +402,22 @@ def run_bot():
                     print(f"  >> PAPER SELL {sell_qty} x {symbol} @ ${price:.2f}")
 
             # --- Phase 4: Execute BUY signals (use cash or rebalance) ---
+            # Market regime filter: skip all buys if broad market is in downtrend
+            market_regime_ok = True
+            if ENABLE_MARKET_REGIME:
+                spy_history = market.get_price_history(REGIME_BENCHMARK)
+                if len(spy_history) >= REGIME_SMA_PERIOD:
+                    spy_sma = compute_sma(spy_history, REGIME_SMA_PERIOD)
+                    spy_price = float(spy_history.iloc[-1])
+                    spy_sma_val = float(spy_sma.iloc[-1])
+                    market_regime_ok = spy_price > spy_sma_val
+                    if not market_regime_ok:
+                        logger.info(
+                            "MARKET REGIME: RISK-OFF — %s ($%.2f) below %d-day SMA ($%.2f). No buys.",
+                            REGIME_BENCHMARK, spy_price, REGIME_SMA_PERIOD, spy_sma_val,
+                        )
+                        print(f"  ⚠️  RISK-OFF: {REGIME_BENCHMARK} below {REGIME_SMA_PERIOD}-day SMA — skipping all buys")
+
             portfolio_value = sum(
                 current_prices.get(s, 0) * portfolio.positions.get(s, {}).get("qty", 0)
                 for s in portfolio.positions
@@ -393,6 +425,9 @@ def run_bot():
 
             for symbol in tradeable:
                 if signals.get(symbol) != SIGNAL_BUY:
+                    continue
+                if not market_regime_ok:
+                    logger.info("BUY signal for %s suppressed by market regime filter", symbol)
                     continue
                 if is_on_cooldown(symbol):
                     logger.info("BUY signal for %s but on cooldown — skipping", symbol)

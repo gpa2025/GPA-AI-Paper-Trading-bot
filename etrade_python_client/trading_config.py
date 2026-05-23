@@ -124,3 +124,20 @@ STOP_LOSS_PCT = 0.05        # sell if position drops 5% from avg cost
 TAKE_PROFIT_PCT = 0.10      # sell if position gains 10% from avg cost
 ENABLE_STOP_LOSS = True
 ENABLE_TAKE_PROFIT = True
+
+# ---------------------------------------------------------------------------
+#  Market Regime Filter
+# ---------------------------------------------------------------------------
+#  When enabled, the bot checks if the broad market (SPY) is in an uptrend
+#  before allowing BUY signals. If SPY is below its 50-day SMA, the market
+#  is considered "risk-off" and the bot will only HOLD or SELL — no new buys.
+#
+#  This prevents buying into a falling market where even good stocks get
+#  dragged down by macro selling pressure.
+#
+#  REGIME_BENCHMARK: the ETF used to gauge market health (SPY = S&P 500)
+#  REGIME_SMA_PERIOD: SMA period for the benchmark trend check
+# ---------------------------------------------------------------------------
+ENABLE_MARKET_REGIME = True
+REGIME_BENCHMARK = "SPY"
+REGIME_SMA_PERIOD = 50      # SPY must be above its 50-day SMA to allow buys
