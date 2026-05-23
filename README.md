@@ -10,8 +10,6 @@ An AI-powered paper trading system that uses real market data from Yahoo Finance
 
 ![Architecture Diagram](docs/architecture.png)
 
-> Source file: `docs/trading_bot_architecture.drawio` (editable in [draw.io](https://app.diagrams.net))
-
 ```
 Yahoo Finance ──→ Market Data ──→ Market Open? ──→ Strategy Engine ──→ Market Regime
                                        ↓ NO              (SMA + RSI +       ↓
