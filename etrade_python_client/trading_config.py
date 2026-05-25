@@ -59,6 +59,14 @@ DEFAULT_TRADE_QTY = 10      # legacy fallback for web dashboard/test scripts
 COOLDOWN_HOURS = 24         # hours to wait after a trade before trading same symbol again
 
 # ---------------------------------------------------------------------------
+#  Data Source
+# ---------------------------------------------------------------------------
+#  "yahoo"  — free Yahoo Finance data (default, no API keys needed)
+#  "etrade" — real-time quotes from E*TRADE (requires API keys in config.ini
+#             and OAuth authentication via the dashboard's E*TRADE button)
+DATA_SOURCE = "yahoo"
+
+# ---------------------------------------------------------------------------
 #  Timing
 # ---------------------------------------------------------------------------
 POLL_INTERVAL_SEC = 900     # seconds between market-data polls (15 minutes)

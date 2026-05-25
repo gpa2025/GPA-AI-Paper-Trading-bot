@@ -26,7 +26,10 @@ class MarketData:
     @property
     def source(self) -> str:
         """Return which data source is active."""
-        return "etrade" if etrade_session.is_authenticated else "yahoo"
+        import trading_config as cfg
+        if cfg.DATA_SOURCE == "etrade" and etrade_session.is_authenticated:
+            return "etrade"
+        return "yahoo"
 
     # ------------------------------------------------------------------ #
     #  E*TRADE quote API
@@ -112,23 +115,28 @@ class MarketData:
             return None
 
     # ------------------------------------------------------------------ #
-    #  Public API (tries E*TRADE first, falls back to Yahoo)
+    #  Public API (respects DATA_SOURCE config)
     # ------------------------------------------------------------------ #
 
     def get_quote(self, symbol: str) -> dict | None:
         """
-        Fetch a real-time quote. Tries E*TRADE first, then Yahoo Finance.
+        Fetch a real-time quote. Uses DATA_SOURCE config to determine priority.
+        "etrade" — tries E*TRADE first, falls back to Yahoo
+        "yahoo"  — Yahoo Finance only
         """
-        # Try E*TRADE
-        quote = self._etrade_quote(symbol)
-        if quote and quote.get("last_price") is not None:
-            return quote
+        import trading_config as cfg
 
-        # Fallback to Yahoo
-        quote = self._yahoo_quote(symbol)
-        if quote:
-            logger.debug("Using Yahoo fallback for %s", symbol)
-        return quote
+        if cfg.DATA_SOURCE == "etrade":
+            quote = self._etrade_quote(symbol)
+            if quote and quote.get("last_price") is not None:
+                return quote
+            # Fallback to Yahoo
+            quote = self._yahoo_quote(symbol)
+            if quote:
+                logger.debug("E*TRADE unavailable, using Yahoo fallback for %s", symbol)
+            return quote
+        else:
+            return self._yahoo_quote(symbol)
 
     def get_price(self, symbol: str) -> float | None:
         """Return just the last trade price."""

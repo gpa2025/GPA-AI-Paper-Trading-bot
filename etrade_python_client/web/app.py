@@ -517,7 +517,7 @@ def api_etrade_auth_start():
     from market.etrade_session import etrade_session
     try:
         body = request.get_json() or {}
-        use_sandbox = body.get("sandbox", True)  # default to sandbox until prod keys work
+        use_sandbox = body.get("sandbox", False)  # use production keys by default
         auth_url = etrade_session.start_auth(use_sandbox=use_sandbox)
         return jsonify({"auth_url": auth_url, "sandbox": use_sandbox})
     except Exception as exc:
